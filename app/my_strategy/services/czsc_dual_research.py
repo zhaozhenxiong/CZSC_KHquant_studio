@@ -117,7 +117,7 @@ def prepare_frozen_dataset(source_training_run_id, context, config, *, symbols=N
     own_calendar = context.subdir("data_snapshots") / "calendar.json"
     _save(own_calendar, calendar_value)
     calendar = {**source["calendar"], "path": str(own_calendar), "source_path": str(calendar_path),
-                "source_file_sha256": _file_hash(calendar_path)}
+                "source_file_sha256": _file_hash(calendar_path), "file_sha256": _file_hash(own_calendar)}
     snapshot = {"source_run_id": source_training_run_id, "source_report_path": str(report_path),
         "source_report_sha256": source_hash, "source_universe_count": len(all_records),
         "all_source_records": all_records, "selected_symbols": requested,
