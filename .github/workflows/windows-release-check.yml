@@ -1,0 +1,49 @@
+name: Verify bundled Windows release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Install validates the bundled native asset against the frozen source and SHA.
+      - run: python install.py --venv-dir .venv-release --device cpu
+      - run: |
+          @'
+          import importlib.metadata, json
+          from pathlib import Path
+          entries = json.loads(Path('app/vendor/wheels/wheel-index.json').read_text())['wheels']
+          expected = next(e for e in entries if e['filename'].endswith('win_amd64.whl'))
+          direct = json.loads(importlib.metadata.distribution('czsc').read_text('direct_url.json'))
+          assert direct['archive_info']['hashes']['sha256'] == expected['sha256']
+          print('Verified installed CZSC is the bundled Windows asset', expected['sha256'])
+          '@ | .venv-release/Scripts/python.exe -I -
+      - run: .venv-release/Scripts/python.exe -m my_strategy.scripts.ci_guard --skip-docker
+      - run: .venv-release/Scripts/python.exe -m pip wheel . --no-deps --no-build-isolation --wheel-dir .scratch/release-wheels
+      - run: .venv-release/Scripts/python.exe -m pip install --no-deps --force-reinstall .scratch/release-wheels/khquant-0.1.1-py3-none-any.whl
+      - run: |
+          @'
+          import importlib.metadata, json, subprocess, sys
+          from pathlib import Path
+          import my_strategy
+          path = Path(my_strategy.__file__).resolve()
+          assert path.is_relative_to(Path(sys.prefix).resolve()) and 'site-packages' in path.parts
+          assert importlib.metadata.version('khquant') == '0.1.1'
+          identity = {'version': '0.1.1', 'package_path': str(path), 'prefix': sys.prefix,
+                      'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                      'application_import': 'installed wheel site-packages'}
+          Path('installation-windows-identity.json').write_text(json.dumps(identity, indent=2), encoding='utf-8')
+          '@ | .venv-release/Scripts/python.exe -I -
+      - run: .venv-release/Scripts/python.exe app/verify_installation.py --device cpu --output installation-windows.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-bundled-release-verification
+          if-no-files-found: error
+          path: |
+            installation-windows.json
+            installation-windows-identity.json

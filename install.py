@@ -18,6 +18,14 @@ ROOT = Path(__file__).resolve().parent
 APP = ROOT / "app"
 
 
+def configure_utf8_stdio() -> None:
+    """Configure entrypoint output before the application dependencies exist."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8")
+
+
 def read_env(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
@@ -146,6 +154,7 @@ def record_wheel_provenance(wheel: Path, manifest: dict) -> None:
 
 
 def install(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description="安装完整 KHQuant CZSC 工作台（Python 3.12，CPU/CUDA/MPS）")
     parser.add_argument("--venv-dir")
     parser.add_argument("--data-dir")
@@ -195,7 +204,8 @@ def install(argv: list[str] | None = None) -> int:
     env.pop("PYTHONHOME", None)
 
     def run(*command: str) -> None:
-        subprocess.run([str(executable), *command], cwd=APP, env=env, check=True)
+        subprocess.run([str(executable), *command], cwd=APP,
+                       env=dict(env, PYTHONUTF8="1", PYTHONIOENCODING="utf-8"), check=True)
 
     manifest_path = APP / "czsc-source-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

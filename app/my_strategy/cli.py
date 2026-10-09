@@ -10,6 +10,7 @@ import sys
 import time
 
 from my_strategy.core.paths import PROJECT_ROOT
+from my_strategy.runtime_env import configure_utf8_stdio
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -83,10 +84,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     delegates = {"dashboard": ["-m", "my_strategy.web_dashboard.scripts.serve_dashboard"], "update-data": ["-m", "my_strategy.scripts.update_daily_data"], "package": ["-m", "my_strategy.scripts.package_project"], "doctor": ["-m", "my_strategy.scripts.docker_runtime_doctor"]}
     values = list(sys.argv[1:] if argv is None else argv)
     if values and values[0] in delegates:
-        return subprocess.call([sys.executable, *delegates[values[0]], *values[1:]], cwd=PROJECT_ROOT)
+        return subprocess.call([sys.executable, *delegates[values[0]], *values[1:]], cwd=PROJECT_ROOT,
+                               env=dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8"))
     args = build_parser().parse_args(values)
     try:
         from my_strategy.adapters.czsc_adapter import data_status
