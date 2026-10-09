@@ -3,8 +3,17 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 import sysconfig
+
+
+def configure_utf8_stdio() -> None:
+    """Use UTF-8 at executable entrypoints without changing capture streams."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8")
 
 
 def runtime_resource_root() -> Path:

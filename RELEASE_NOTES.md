@@ -11,3 +11,5 @@
 本版在真实 Apple Silicon Mac 上通过独立安装的 0.1.1 wheel CPU/MPS 冒烟：严格 doctor、训练保存与重载、各 40 行实际推理、六个网页入口、关注及持仓重启保存。该环境复用本机已锁定依赖，未宣称重新下载依赖的全新环境验收。Windows、Linux 和 CUDA 本版验收仍待执行。
 
 重新训练 Wyckoff 的依赖：先准备核验交易日历和包含完整冻结特征、10 日标签的 MA 源研究运行，再完成使用同一 MA 源与日历的 dual 研究。research-wyckoff-train 的 --source-training-run-id 指定该 MA 源；还需将 configs/czsc_wyckoff_research.json 的 baseline_dual_run_id 设置为匹配的 dual 运行。随包配置里的原本地历史 run ID 不附带对应权重或报告，新机器不能直接复用。各依赖身份必须匹配；新的训练和认证协议须按实际完成时间重新冻结，禁止沿用旧冻结时间取得资格。
+
+GitHub 发行前修复 Windows cp1252 重定向输出触发中文 JSON 编码错误：CLI、doctor 与安装器入口明确使用 UTF-8，子进程继承一致的编码。新增真实 cp1252 子进程回归，研究特征、交易策略、模型资格与冻结 CZSC 算法保持原契约。

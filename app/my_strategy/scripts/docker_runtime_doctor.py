@@ -17,6 +17,7 @@ from typing import Any
 from my_strategy.core.paths import ARTIFACT_RUNS_ROOT, DATA_ROOT, METADATA_ROOT, PROJECT_ROOT, PROCESSED_DATA_ROOT
 from my_strategy.storage.db_paths import raw_db_path
 from my_strategy.services.czsc_compute import compute_status
+from my_strategy.runtime_env import configure_utf8_stdio
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -161,6 +162,7 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     args = parse_args(argv)
     payload = build_payload(args)
     if args.json:
