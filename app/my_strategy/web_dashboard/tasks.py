@@ -83,7 +83,7 @@ class TaskManager:
             return job
 
     def submit(self, kind: str, spec: dict[str, Any]) -> dict[str, Any]:
-        if kind not in {"scan", "backtest", "update", "research_train"}:
+        if kind not in {"scan", "backtest", "update", "research_train", "dual_research_train", "wyckoff_research_train"}:
             raise ValueError("仅支持结构扫描、CZSC回测和行情更新")
         with self._lock:
             if self._closed:
@@ -138,7 +138,7 @@ class TaskManager:
                 self._cancel.pop(job_id, None)
 
     def _finish_research_run(self, job: dict[str, Any]) -> None:
-        if not job.get("run_id") or not (job["kind"] == "research_train" or job["spec"].get("research")):
+        if not job.get("run_id") or not (job["kind"] in {"research_train", "dual_research_train", "wyckoff_research_train"} or job["spec"].get("research")):
             return
         path = (self.results.runs_root / job["run_id"] / "metadata.json").resolve()
         if not path.is_relative_to(self.results.runs_root.resolve()):
@@ -155,6 +155,30 @@ class TaskManager:
         from my_strategy.services.czsc_analysis import strategy_config
         if kind == "update":
             return self._update(job_id, spec)
+        if kind == "wyckoff_research_train":
+            from my_strategy.services.czsc_wyckoff_research import train_wyckoff_research
+            def wyckoff_progress(stage, current, total, failed):
+                self._check(job_id)
+                self._patch(job_id, progress_detail={"stage": stage, "current": current, "total": total, "failed": failed})
+            source = spec.get("source_training_run_id")
+            if not source:
+                raise ValueError("威科夫研究需要明确的冻结来源运行")
+            return train_wyckoff_research(source_training_run_id=source, end=spec.get("end"),
+                symbols=spec.get("symbols") or None, device=spec.get("device") or "auto",
+                cpu_workers=spec.get("cpu_workers") or 4, progress=wyckoff_progress,
+                check_cancel=lambda: self._check(job_id), run_callback=lambda run_id: self._patch(job_id, run_id=run_id))
+        if kind == "dual_research_train":
+            from my_strategy.services.czsc_dual_research import train_dual_research
+            def dual_progress(stage, current, total, failed):
+                self._check(job_id)
+                self._patch(job_id, progress_detail={"stage": stage, "current": current, "total": total, "failed": failed})
+            source = spec.get("source_training_run_id")
+            if not source:
+                raise ValueError("双专家研究需要明确的冻结来源运行")
+            return train_dual_research(source_training_run_id=source, end=spec.get("end"),
+                symbols=spec.get("symbols") or None, device=spec.get("device") or "auto",
+                cpu_workers=spec.get("cpu_workers") or 4, progress=dual_progress,
+                check_cancel=lambda: self._check(job_id), run_callback=lambda run_id: self._patch(job_id, run_id=run_id))
         if kind == "research_train" or spec.get("research"):
             from my_strategy.services.czsc_research import train_research, scan_research, backtest_research, research_status
             last_notice, last_progress, last_stage = 0.0, 0.0, None
@@ -188,6 +212,7 @@ class TaskManager:
                 return train_research(**common, calendar_run_id=calendar_id, cpu_workers=spec.get("cpu_workers") or 4)
             routed = {key: spec.get(key) for key in ("model_run_id", "model_fold", "calendar_run_id")}
             routed.update(usage_mode=spec.get("usage_mode", "historical"), model_policy=spec.get("model_policy", "auto"),
+                          model_family=spec.get("model_family", "ma_trend"),
                           cpu_workers=spec.get("cpu_workers"), batch_size=spec.get("batch_size"),
                           entry_policy=spec.get("entry_policy", "legacy"))
             if kind == "scan":

@@ -66,6 +66,36 @@
         ],
         "discarded_attempt": "Original fat LTO/codegen-units=1 was interrupted after more than 21 CPU minutes; source unchanged. Successful build used the recorded overrides."
       }
+    },
+    {
+      "filename": "czsc-1.0.1-cp310-abi3-macosx_11_0_arm64.whl",
+      "sha256": "8049dcf486a2fc228f882943d88f49340df2ac34310d5f57f6dd497f1f95a7ef",
+      "tags": [
+        "cp310-abi3-macosx_11_0_arm64"
+      ],
+      "build": {
+        "python": "3.12.13",
+        "system": "Darwin",
+        "machine": "arm64",
+        "wheel_tags": [
+          "cp310",
+          "abi3",
+          "macosx_11_0_arm64"
+        ],
+        "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+        "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
+        "maturin": "maturin 1.13.1",
+        "compiler": "system toolchain",
+        "rustflags": "",
+        "release_profile_overrides": {
+          "CARGO_PROFILE_RELEASE_LTO": "false",
+          "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "16"
+        },
+        "source_tree_sha256": "23cc880c2eccb8505a011fe61a95dd9a93cb3c8fb58ae09410a37f1e776958a7",
+        "cargo_locked": true,
+        "source_algorithm_patches": false,
+        "cargo_target_dir": "/Users/paomoczhixia/Downloads/My_project/KHQuant/app/.runtime-build/czsc-target"
+      }
     }
   ]
 }

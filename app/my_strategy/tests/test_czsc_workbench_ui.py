@@ -47,6 +47,7 @@ global.getComputedStyle = () => ({getPropertyValue:(key) => ({'--up':'red','--do
 global.ResizeObserver = class { observe() {} };
 global.requestAnimationFrame = () => 1;
 global.KHQuantMarkers = require(process.argv[2]);
+require(require('path').join(require('path').dirname(process.argv[1]),'wyckoff_markers.js'));
 let candles, crosshair;
 function series() { return {data:[],markers:[],setData(rows) { this.data=rows; },setMarkers(rows) { this.markers=rows; },
   applyOptions() {},priceScale:() => ({applyOptions() {}}),priceToCoordinate:(value) => 150-value}; }

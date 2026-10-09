@@ -26,6 +26,7 @@ from my_strategy.data_manager.market_data_provider import (
     _normalize_stock_code,
 )
 from my_strategy.data_manager.source_status import load_source_status
+from my_strategy.data_manager.stock_pool import normalize_stock_code
 
 
 class _FakeResponse(io.BytesIO):
@@ -66,10 +67,25 @@ class DummyProvider(MarketDataProvider):
         return ProviderResult(False, None, self.name, "not implemented")
 
 
-def test_normalize_stock_code():
-    assert _normalize_stock_code("000001") == "000001.SZ"
-    assert _normalize_stock_code("600000.SH") == "600000.SH"
-    assert _normalize_stock_code(" 300750 ") == "300750.SZ"
+@pytest.mark.parametrize("normalize", [_normalize_stock_code, normalize_stock_code])
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("000001", "000001.SZ"),
+        ("600000", "600000.SH"),
+        (" 300750 ", "300750.SZ"),
+        ("430047", "430047.BJ"),
+        ("830799", "830799.BJ"),
+        ("920005", "920005.BJ"),
+        ("600000.SH", "600000.SH"),
+        ("000001.SH", "000001.SH"),
+        ("920005.BJ", "920005.BJ"),
+        (" 830799.bj ", "830799.BJ"),
+        ("600000.SZ", "600000.SZ"),
+    ],
+)
+def test_normalize_stock_code(normalize, code, expected):
+    assert normalize(code) == expected
 
 
 def test_fuyao_provider_normalizes_daily_response(monkeypatch):
@@ -188,7 +204,7 @@ def test_default_provider_without_tushare_credentials_reaches_fallback_without_n
     unified = UnifiedDataProvider()
 
     assert "tushare" not in unified._providers
-    assert {"akshare", "fuyao", "baostock", "tencent_realtime", "local_csv"} == set(unified._providers)
+    assert {"akshare", "eastmoney_unadjusted_v1", "sina_unadjusted_v1", "tencent_star_unadjusted_v1", "fuyao", "baostock", "tencent_realtime", "local_csv"} == set(unified._providers)
     assert not TushareProvider._global_failed
     result = unified.fetch_daily("000001.SZ", "2024-01-02", "2024-01-02")
 

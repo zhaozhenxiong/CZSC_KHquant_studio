@@ -136,10 +136,9 @@ class ModelReleaseStore:
         selected = next((entry for entry in catalog if entry["checkpoint"] == checkpoint), None)
         if not selected:
             raise ValueError("selected checkpoint absent")
-        from my_strategy.services.czsc_research_features import FEATURE_COLUMNS, FEATURE_VERSION, FEATURE_SCHEMA_HASH
-        if (selected["feature_version"] != FEATURE_VERSION or selected["feature_schema_hash"] != FEATURE_SCHEMA_HASH
-                or selected["manifest"]["schema"]["columns"] != list(FEATURE_COLUMNS)):
-            raise ValueError("production checkpoint feature semantics incompatible")
+        from my_strategy.services.czsc_research_profiles import recognized_feature_profile
+        profile = recognized_feature_profile(selected["feature_version"], selected["feature_schema_hash"],
+                                             selected["manifest"]["schema"]["columns"], selected["strategy_version"])
         native_runtime()  # Verify the frozen attachment before granting a production identity.
         audit_path = root / "reports" / "execution_audit.json"
         audit = json.loads(audit_path.read_text(encoding="utf-8"))
@@ -185,9 +184,11 @@ class ModelReleaseStore:
         freeze_metadata = json.loads(freeze_metadata_path.read_text(encoding="utf-8"))
         freeze_policy = json.loads(freeze_policy_path.read_text(encoding="utf-8"))
         bindings = {"training_run_id": model_run_id, "checkpoint": checkpoint,
-            "manifest_sha256": selected["manifest_sha256"], "feature_schema_hash": FEATURE_SCHEMA_HASH,
+            "manifest_sha256": selected["manifest_sha256"], "feature_schema_hash": profile["schema_hash"],
             "strategy_version": selected["strategy_version"], "research_config_sha256": stable_hash(config),
             "native_source_sha256": SOURCE_SHA256}
+        if profile["name"] != "legacy":
+            bindings["feature_profile"] = profile["name"]
         if (freeze_metadata.get("run_id") != freeze_root.name
                 or len(str(freeze_metadata.get("created_at", ""))) <= 10
                 or signal_time(freeze_metadata["created_at"]) != frozen

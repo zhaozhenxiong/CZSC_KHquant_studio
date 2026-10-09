@@ -30,6 +30,16 @@ industry_classification:
   max_source_age_days: 14
 
 provider_rate_limits:
+  sina_unadjusted_v1:
+    calls: 4
+    per_seconds: 1
+  eastmoney_unadjusted_v1:
+    calls: 4
+    per_seconds: 1
+  tencent_star_unadjusted_v1:
+    # A full-history stock fetch makes one bounded request per calendar year.
+    calls: 1
+    per_seconds: 1
   # 同花顺金融数据 API supports up to 20 requests/second. Keep a margin for
   # retries and concurrent dashboard/update jobs; Tushare retains its own cap.
   fuyao:
@@ -49,11 +59,16 @@ rate_limit:
   per_seconds: 60
 
 data_sources:
-  primary: "fuyao"
+  # Free raw historical bars, in shares/CNY, without adjustment or date filling.
+  primary: "sina_unadjusted_v1"
   fallback:
+    - "tencent_star_unadjusted_v1"
+    - "fuyao"
     - "tushare"
-    - "akshare"
-    - "local_csv"
+
+sina_unadjusted_v1:
+  # Snapshot preserves NEEQ dates and derives the actual BSE listing boundary.
+  listing_boundaries_file: "my_strategy/data/metadata/bse_listing_boundaries_20261008.json"
 
 fuyao:
   base_url: "https://fuyao.aicubes.cn"

@@ -18,10 +18,12 @@ from my_strategy.services.czsc_analysis import strategy_config
 from my_strategy.services.czsc_backtest import execute_decisions, _write_frame
 
 
-def _prepare_stock(symbol, end, market_dates, cache=None, db_path=None):
+def _prepare_stock(symbol, end, market_dates, cache=None, db_path=None, feature_profile=None, expert_family=None):
     from my_strategy.services.czsc_research import _calendar_quality, _file_hash
     from my_strategy.services.czsc_research_features import build_features, FEATURE_VERSION, FEATURE_SCHEMA_HASH
     from my_strategy.adapters.czsc_adapter import SOURCE_SHA256
+    from my_strategy.services.czsc_research_profiles import bind_feature_profile, get_feature_profile
+    profile = get_feature_profile(feature_profile)
     raw = load_bars(symbol, end=end, db_path=db_path)
     features, hit = None, False
     if cache:
@@ -29,20 +31,59 @@ def _prepare_stock(symbol, end, market_dates, cache=None, db_path=None):
         if _file_hash(path) != cache["sha256"]:
             raise ValueError("冻结研究特征文件哈希不匹配")
         saved = pd.read_parquet(path)
-        if (saved.attrs.get("feature_version") != FEATURE_VERSION or saved.attrs.get("schema_hash") != FEATURE_SCHEMA_HASH
-                or saved.attrs.get("source_sha256") != SOURCE_SHA256
-                or saved.attrs.get("config_hash") != stable_hash(strategy_config())):
+        settings = strategy_config()
+        base_matches = (saved.attrs.get("base_feature_version", saved.attrs.get("feature_version")) == FEATURE_VERSION
+                        and saved.attrs.get("base_schema_hash", saved.attrs.get("schema_hash")) == FEATURE_SCHEMA_HASH
+                        and saved.attrs.get("source_sha256") == SOURCE_SHA256
+                        and saved.attrs.get("config_hash") == stable_hash(settings))
+        if not base_matches and profile["name"] == "legacy":
             raise ValueError("缓存特征语义、源码或配置不匹配")
-        saved = saved[pd.to_datetime(saved.date) <= pd.Timestamp(end)].reset_index(drop=True)
-        columns = ["symbol", "open", "high", "low", "close", "volume", "amount", "source", "has_trade_price"]
-        if (len(saved) == len(raw) and all(c in saved for c in columns)
-                and pd.to_datetime(saved.date).tolist() == pd.to_datetime(raw.date).tolist()
-                and saved[columns].equals(raw[columns].reset_index(drop=True))):
-            features, hit = saved, True
+        profile_matches = True
+        if profile["name"] == "ma_trend_v1":
+            saved_columns = saved.attrs.get("feature_columns")
+            quality_window = int(settings.get("research", {}).get("quality_window_bars", 120))
+            profile_matches = (saved.attrs.get("feature_profile") == profile["name"]
+                               and saved.attrs.get("feature_version") == profile["version"]
+                               and saved.attrs.get("schema_hash") == profile["schema_hash"]
+                               and isinstance(saved_columns, (list, tuple))
+                               and list(saved_columns) == profile["columns"]
+                               and saved.attrs.get("model_quality_window_bars") == max(120, quality_window)
+                               and saved.attrs.get("model_minimum_active_bars") == 60)
+        record_matches = (
+            ("feature_profile" not in cache or
+             cache["feature_profile"] == profile["name"] == saved.attrs.get("feature_profile", profile["name"]))
+            and ("feature_schema_hash" not in cache or
+                 cache["feature_schema_hash"] == profile["schema_hash"] == saved.attrs.get("schema_hash")))
+        # Recompute incompatible semantics before bind can stamp a new profile identity.
+        if base_matches and profile_matches and record_matches:
+            saved = saved[pd.to_datetime(saved.date) <= pd.Timestamp(end)].reset_index(drop=True)
+            columns = ["symbol", "open", "high", "low", "close", "volume", "amount", "source", "has_trade_price"]
+            model_columns_present = (profile["name"] != "ma_trend_v1" or "model_input_eligible" in saved)
+            if (len(saved) == len(raw) and all(c in saved for c in [*columns, *profile["columns"]]) and model_columns_present
+                    and pd.to_datetime(saved.date).tolist() == pd.to_datetime(raw.date).tolist()
+                    and saved[columns].equals(raw[columns].reset_index(drop=True))):
+                features, hit = saved, True
     if features is None:
         features = build_features(raw)
     features = _calendar_quality(features, raw, market_dates)
+    features = bind_feature_profile(features, feature_profile)
+    wyckoff_hit = False
+    if expert_family == "wyckoff":
+        from my_strategy.services.czsc_research_profiles import prepare_structure_inputs
+        from my_strategy.services.czsc_wyckoff_features import prepare_wyckoff_inputs, get_wyckoff_profile
+        from my_strategy.services.czsc_wyckoff_events import WYCKOFF_EVENT_VERSION
+        expected = get_wyckoff_profile()
+        wyckoff_hit = (hit and features.attrs.get("wyckoff_feature_version") == expected["version"]
+            and features.attrs.get("wyckoff_schema_hash") == expected["schema_hash"]
+            and features.attrs.get("wyckoff_event_version") == WYCKOFF_EVENT_VERSION
+            and list(features.attrs.get("wyckoff_feature_columns", [])) == expected["columns"]
+            and all(column in features for column in [*expected["columns"], "wyckoff_input_eligible",
+                "wyckoff_reason_codes", "wyckoff_event", "wyckoff_state", "wyckoff_available_at"]))
+        features = prepare_structure_inputs(features)
+        if not wyckoff_hit:
+            features = prepare_wyckoff_inputs(features, raw=raw, config={"market_dates": market_dates})
     return {"symbol": symbol, "raw": raw, "features": features, "cache_hit": hit,
+            "wyckoff_cache_hit": wyckoff_hit,
             "data_end": pd.Timestamp(raw.iloc[-1].date).date().isoformat(), "data_version": raw.attrs["data_version"]}
 
 
@@ -54,7 +95,8 @@ def _replay_stock(item, include_decisions=True):
     supported = symbol.startswith("60") and symbol.endswith(".SH") or symbol.startswith("00") and symbol.endswith(".SZ")
     replay = replay_decisions(item["features"], item["raw"], probabilities=item["probabilities"],
                               thresholds=np.array([r.get("probability_threshold", .55) for r in routes]),
-                              apply_ml_mask=np.array([supported and r.get("applied_to_entry", False) for r in routes]),
+                              apply_ml_mask=np.array([supported and bool(eligible) and r.get("applied_to_entry", False)
+                                                      for r, eligible in zip(routes, item["features"]["input_eligible"], strict=True)]),
                               model_metadata=routes, entry_policy=item.get("entry_policy", "legacy"),
                               position_start=item.get("position_start"), entry_parameters=item.get("entry_parameters"))
     if not include_decisions:
@@ -81,11 +123,16 @@ def route_segments(routes, *, start=None):
 class ResearchRuntime:
     def __init__(self, *, end, usage_mode="historical", model_policy="auto", model_run_id=None,
                  model_fold=None, calendar_run_id=None, device=None, db_path=None,
-                 entry_policy="legacy", position_start=None):
+                 entry_policy="legacy", position_start=None, model_family="ma_trend"):
         from my_strategy.services.czsc_research import _calendar, research_status, run_path
         from my_strategy.services.czsc_research_models import ModelResolver
         from my_strategy.services.czsc_research_ml import PredictorSession
         from my_strategy.services.czsc_entry_plan import entry_plan_parameters, PLAN_VERSION
+        from my_strategy.core.config_loader import load_config
+        from my_strategy.services.czsc_research_profiles import get_feature_profile
+        if model_family not in {"ma_trend", "dual", "wyckoff"}:
+            raise ValueError("unknown model family")
+        self.model_family = model_family
         if entry_policy not in {"legacy", "fresh", "risk"}:
             raise ValueError("invalid entry policy")
         if entry_policy == "risk" and usage_mode == "production":
@@ -104,7 +151,12 @@ class ResearchRuntime:
         self.selected_device = device
         self.end, self.db_path = end, db_path
         status = research_status()
-        if not calendar_run_id and model_run_id:
+        research_config = load_config("czsc_research")
+        if model_run_id and model_family == "ma_trend":
+            training = json.loads((run_path(model_run_id) / "reports/research.json").read_text(encoding="utf-8"))
+            research_config = training.get("config", research_config)
+        self.profile = get_feature_profile(research_config.get("feature_profile"))
+        if not calendar_run_id and model_run_id and model_family == "ma_trend":
             training = json.loads((run_path(model_run_id) / "reports/research.json").read_text(encoding="utf-8"))
             calendar_run_id = training["calendar"]["run_id"]
         calendar_run_id = calendar_run_id or status.get("calendar_run_id")
@@ -112,18 +164,41 @@ class ResearchRuntime:
             raise ValueError("组合研究需要已核验交易日历")
         self.market_dates, self.calendar = _calendar(calendar_run_id)
         self.mode, self.policy = usage_mode, model_policy
-        self.resolver = ModelResolver(usage_mode=usage_mode, model_policy=model_policy,
+        self.resolver = None if model_family in {"dual", "wyckoff"} else ModelResolver(usage_mode=usage_mode, model_policy=model_policy,
                                       model_run_id=model_run_id, checkpoint=model_fold,
-                                      calendar_run_id=calendar_run_id, strategy_version="czsc_price_volume_mlp_v1")
-        self.predictor = PredictorSession(device=device)
+                                      calendar_run_id=calendar_run_id, strategy_version=self.profile["strategy_version"],
+                                      feature_version=self.profile["version"], feature_schema_hash=self.profile["schema_hash"],
+                                      feature_columns=self.profile["columns"])
+        self.predictor = None if model_family in {"dual", "wyckoff"} else PredictorSession(device=device)
         self.cache = {}
-        runs = [model_run_id] if model_run_id else [m["run_id"] for m in status["models"]]
+        runs = ([model_run_id] if model_run_id else [m["run_id"] for m in status["models"]]) if model_family == "ma_trend" else []
         for run_id in runs:
             training = json.loads((run_path(run_id) / "reports/research.json").read_text(encoding="utf-8"))
+            if training.get("strategy_version") != self.profile["strategy_version"]:
+                continue
             for record in training.get("dataset_records", []):
                 self.cache.setdefault(record["symbol"], record)
+        if model_family in {"dual", "wyckoff"}:
+            if model_family == "wyckoff":
+                from my_strategy.services.czsc_wyckoff_models import WyckoffResolver as ExpertResolver, WyckoffPredictorSession as ExpertPredictor
+            else:
+                from my_strategy.services.czsc_dual_models import DualResolver as ExpertResolver, DualPredictorSession as ExpertPredictor
+            self.resolver = ExpertResolver(usage_mode=usage_mode, model_policy=model_policy,
+                model_run_id=model_run_id, checkpoint=model_fold, calendar_run_id=calendar_run_id,
+                expected_calendar_hash=stable_hash(self.market_dates))
+            self.predictor = ExpertPredictor(device=device)
+            self.cache = self.resolver.cache
+            if self.resolver.market_dates:
+                if (self.market_dates != self.resolver.market_dates
+                        or self.calendar["hash"] != self.resolver.calendar.get("hash")):
+                    raise ValueError("专家包日历与独立核验日历不一致")
+                self.market_dates, self.calendar = self.resolver.market_dates, self.resolver.calendar
+            self.profile = dict(get_feature_profile("ma_trend_v1"))
+            self.profile["strategy_version"] = "czsc_wyckoff_three_experts_v1" if model_family == "wyckoff" else "czsc_dual_experts_v1"
         self.timings = {"preparation_wall_seconds": 0., "inference_wall_seconds": 0., "decision_wall_seconds": 0.}
         self.cache_hits = self.cache_misses = 0
+        self.wyckoff_cache_hits = self.wyckoff_cache_misses = 0
+        self.inference_reason_counts = Counter()
         self._replay_pool = None
         self.cpu_replay_executor = "parent_serial"
 
@@ -149,7 +224,7 @@ class ResearchRuntime:
                     nonlocal completed, failed
                     symbol = batch[index]
                     try:
-                        items[index] = future.result() if future else _prepare_stock(symbol, self.end, self.market_dates, self.cache.get(symbol), self.db_path)
+                        items[index] = future.result() if future else _prepare_stock(symbol, self.end, self.market_dates, self.cache.get(symbol), self.db_path, self.profile["name"], self.model_family)
                     except (ValueError, FileNotFoundError, RuntimeError) as exc:
                         errors[index] = {"symbol": symbol, "error": str(exc)}
                         failed += 1
@@ -157,7 +232,7 @@ class ResearchRuntime:
                     if progress:
                         progress("CPU并行研究特征准备" if pool else "CPU研究特征准备", completed, len(symbols), failed)
                 if pool:
-                    pending = {pool.submit(_prepare_stock, s, self.end, self.market_dates, self.cache.get(s), self.db_path): i for i, s in enumerate(batch)}
+                    pending = {pool.submit(_prepare_stock, s, self.end, self.market_dates, self.cache.get(s), self.db_path, self.profile["name"], self.model_family): i for i, s in enumerate(batch)}
                     while pending:
                         check()
                         done, _ = wait(pending, timeout=.1, return_when=FIRST_COMPLETED)
@@ -171,6 +246,9 @@ class ResearchRuntime:
                 prepared = [items[i] for i in sorted(items)]
                 self.cache_hits += sum(item["cache_hit"] for item in prepared)
                 self.cache_misses += sum(not item["cache_hit"] for item in prepared)
+                if self.model_family == "wyckoff":
+                    self.wyckoff_cache_hits += sum(item["wyckoff_cache_hit"] for item in prepared)
+                    self.wyckoff_cache_misses += sum(not item["wyckoff_cache_hit"] for item in prepared)
                 yield prepared, [errors[i] for i in sorted(errors)]
             check()
             finished = True
@@ -180,12 +258,21 @@ class ResearchRuntime:
                 pool.shutdown(wait=finished, cancel_futures=not finished)
 
     def replay_batch(self, items, *, progress=None, check_cancel=None, include_decisions=True):
+        self.model_family = getattr(self, "model_family", "ma_trend")
         check = check_cancel or (lambda: None)
         grouped = {}
         started = time.perf_counter()
         for item in items:
             features = item["features"]
+            if self.model_family in {"dual", "wyckoff"}:
+                from my_strategy.services.czsc_research_profiles import prepare_structure_inputs
+                item["features"] = features = prepare_structure_inputs(features)
+                if self.model_family == "wyckoff" and "wyckoff_input_eligible" not in features:
+                    from my_strategy.services.czsc_wyckoff_features import prepare_wyckoff_inputs
+                    item["features"] = features = prepare_wyckoff_inputs(features, raw=item["raw"])
             routes = self.resolver.resolve_dates(features.date.tolist())
+            for route in routes:
+                route["feature_profile"] = "wyckoff_bundle_v1" if self.model_family == "wyckoff" else "dual_bundle_v1" if self.model_family == "dual" else self.profile["name"]
             if self.entry_policy != "legacy":
                 for route in routes:
                     if route.get("model_dir"):
@@ -195,12 +282,42 @@ class ResearchRuntime:
             item.update(entry_policy=self.entry_policy, position_start=self.position_start, entry_parameters=self.entry_parameters)
             item["routes"] = routes
             item["probabilities"] = np.full(len(features), np.nan)
+            expert_names = ("ma", "structure", "wyckoff", "fusion") if self.model_family == "wyckoff" else ("ma", "structure", "fusion")
+            item["expert_probabilities"] = {name: np.full(len(features), np.nan) for name in expert_names}
             mainboard = item["symbol"].startswith("60") and item["symbol"].endswith(".SH") or item["symbol"].startswith("00") and item["symbol"].endswith(".SZ")
             indices = {}
+            eligibility_column = "model_input_eligible" if self.profile["name"] == "ma_trend_v1" else "input_eligible"
+            if self.model_family in {"dual", "wyckoff"}:
+                features["dual_input_eligible"] = features["model_input_eligible"].astype(bool) & features["structure_input_eligible"].astype(bool)
+                eligibility_column = "dual_input_eligible"
+                if self.model_family == "wyckoff":
+                    features["wyckoff_bundle_input_eligible"] = features["dual_input_eligible"] & features["wyckoff_input_eligible"].astype(bool)
+                    eligibility_column = "wyckoff_bundle_input_eligible"
+                    features["wyckoff_prediction_eligible"] = (features["model_input_eligible"].astype(bool)
+                        | features["structure_input_eligible"].astype(bool) | features["wyckoff_input_eligible"].astype(bool))
+            for route, feature in zip(routes, features.to_dict("records"), strict=True):
+                route["model_input_eligible"] = mainboard and bool(feature[eligibility_column])
+                route["model_input_reason_codes"] = list(feature.get("model_reason_codes", feature.get("reason_codes", [])))
+                if self.model_family in {"dual", "wyckoff"}:
+                    route["model_family"] = self.model_family
+                    route["model_input_reason_codes"] += list(feature.get("structure_reason_codes", []))
+                    if self.model_family == "wyckoff":
+                        route["model_input_reason_codes"] += list(feature.get("wyckoff_reason_codes", []))
+                        route["three_expert_input_eligible"] = mainboard and bool(feature[eligibility_column])
+                        route["wyckoff_input_eligible"] = mainboard and bool(feature["wyckoff_input_eligible"])
+                if not mainboard:
+                    route["model_input_reason_codes"].append("unsupported_board")
             if mainboard:
-                for index, (route, eligible) in enumerate(zip(routes, features.input_eligible.to_numpy(), strict=True)):
+                prediction_column = "wyckoff_prediction_eligible" if self.model_family == "wyckoff" else eligibility_column
+                for index, (route, eligible) in enumerate(zip(routes, features[prediction_column].to_numpy(), strict=True)):
                     if route.get("model_dir") and bool(eligible):
                         indices.setdefault(route["model_dir"], []).append(index)
+                    elif not route.get("model_dir"):
+                        self.inference_reason_counts["model_unavailable"] += 1
+                    else:
+                        self.inference_reason_counts["model_input_ineligible"] += 1
+            else:
+                self.inference_reason_counts["unsupported_board"] += len(features)
             for directory, selected in indices.items():
                 grouped.setdefault(directory, []).append((item, selected))
         for directory, locations in grouped.items():
@@ -212,11 +329,35 @@ class ResearchRuntime:
                 raise ValueError("批量推理特征语义版本/schema不一致")
             joined = pd.concat(frames, ignore_index=True)
             joined.attrs = dict(attrs)
-            predict = self.predictor.predict_retrospective if self.mode == "retrospective" else self.predictor.predict
-            values = predict(joined, directory, as_of=self.end)
+            if self.profile["name"] == "ma_trend_v1":
+                joined["input_eligible"] = joined["model_input_eligible"].astype(bool)
+            if (self.model_family == "wyckoff"
+                    and locations[0][0]["routes"][locations[0][1][0]].get("bundle_family") == "dual"):
+                values = self.predictor.predict_dual_fallback(joined, directory, as_of=self.end,
+                                                             retrospective=self.mode == "retrospective")
+            else:
+                predict = self.predictor.predict_retrospective if self.mode == "retrospective" else self.predictor.predict
+                values = predict(joined, directory, as_of=self.end)
             cursor = 0
             for item, indices in locations:
                 item["probabilities"][indices] = values[cursor:cursor + len(indices)]
+                if self.model_family in {"dual", "wyckoff"}:
+                    for name, probabilities in self.predictor.last_expert_values.items():
+                        item["expert_probabilities"][name][indices] = probabilities[cursor:cursor + len(indices)]
+                    if self.model_family == "wyckoff":
+                        fallback_values = self.predictor.last_dual_fallback_values[cursor:cursor + len(indices)]
+                        primary_values = values[cursor:cursor + len(indices)]
+                        for selected_index, primary, fallback in zip(indices, primary_values, fallback_values, strict=True):
+                            if not math.isfinite(primary) and math.isfinite(fallback):
+                                fallback_model = dict(self.predictor.last_fallback_model or {})
+                                item["probabilities"][selected_index] = fallback
+                                item["routes"][selected_index].update(status="dual_fallback_shadow", applied_to_entry=False,
+                                    probability_source="dual_fallback", primary_probability=None,
+                                    model_input_eligible=bool(item["features"].iloc[selected_index]["dual_input_eligible"]),
+                                    fallback_model=fallback_model,
+                                    reason="量价模型或输入不可用；回到同目标双专家影子概率，组合规则连续执行")
+                                if fallback_model.get("probability_threshold") is not None:
+                                    item["routes"][selected_index]["probability_threshold"] = fallback_model["probability_threshold"]
                 cursor += len(indices)
             if cursor != len(values):
                 raise ValueError("批量模型概率行数与输入不一致")
@@ -240,18 +381,58 @@ class ResearchRuntime:
                 replays[index] = _replay_stock(item, include_decisions)
         for index, item in enumerate(items):
             check()
+            features = item["features"]
             routes = item["routes"]
             replay = replays[index]
             item["replay"] = replay
             latest = replay["latest_decision"]
             latest.update(model_resolution={**routes[-1], "probability": float(item["probabilities"][-1]) if math.isfinite(item["probabilities"][-1]) else None},
                           signal_date=latest["date"], reference_close=latest["reference_price"],
+                          feature_profile=self.profile["name"],
+                          model_input_eligible=routes[-1]["model_input_eligible"],
+                          probability_scope="hypothetical_new_entry_fixed_10_sessions",
                           position_scope=latest.get("account_context", "theoretical_prefix_position"),
                           basis={"BUY": "组合研究 Position 最新收盘产生开仓意图。", "SELL": "组合研究 Position 最新收盘产生退出意图。", "HOLD": "组合研究理论持仓继续持有，本日无新转仓。", "WAIT": "组合研究理论空仓等待，本日无新开仓。"}[latest["action"]],
                           next_market_session=next((d for d in self.market_dates if d > item["data_end"]), None),
                           calendar=self.calendar, model_used=bool(latest["ml_filter_applied"] and latest["probability"] is not None),
                           scope="组合研究 Position 理论持仓，非我的实盘持仓",
                           execution_basis="收盘意图；下一核验交易日开盘经 Broker 校验执行，参考价不是成交价。")
+            if self.model_family in {"dual", "wyckoff"}:
+                latest["model_family"] = self.model_family
+                latest["feature_profile"] = "wyckoff_bundle_v1" if self.model_family == "wyckoff" else "dual_bundle_v1"
+                from my_strategy.services.czsc_research_profiles import get_feature_profile
+                latest["dual_features"] = {name: {"profile": profile["name"], "schema_hash": profile["schema_hash"],
+                    "values": {column: features.iloc[-1][column] for column in profile["columns"]}}
+                    for name, profile in (("ma", get_feature_profile("ma_trend_v1")), ("structure", get_feature_profile("czsc_structure_v1")))}
+                latest["model_resolution"]["expert_probabilities"] = {name: float(values[-1]) if math.isfinite(values[-1]) else None
+                    for name, values in item["expert_probabilities"].items()}
+                latest["exit_model"] = {"probability": None, "applied": False, "status": "actual_position_required",
+                    "reason": "分析图为理论持仓；独立退出头仅读取真实 Broker 持仓状态，不从买入概率推导卖出。"}
+                if self.model_family == "wyckoff":
+                    from my_strategy.services.czsc_wyckoff_features import get_wyckoff_profile
+                    w_profile = get_wyckoff_profile()
+                    latest["policy_entry_model"] = {"probability": None, "applied": False,
+                        "status": "actual_flat_candidate_required",
+                        "target_scope": "hypothetical_frozen_policy_roundtrip",
+                        "reason": "策略入场头需要实际 Broker 空仓、现金及候选计划；固定10日概率不代替策略入场概率。"}
+                    latest["expert_features"] = {**latest["dual_features"], "wyckoff": {
+                        "profile": w_profile["name"], "schema_hash": w_profile["schema_hash"],
+                        "values": {column: features.iloc[-1][column] for column in w_profile["columns"]}}}
+                    last_feature = features.iloc[-1]
+                    latest["wyckoff_evidence"] = {
+                        "event": last_feature.get("wyckoff_event"), "state": last_feature.get("wyckoff_state"),
+                        "anchor_at": last_feature.get("wyckoff_anchor_at"),
+                        "observed_at": last_feature.get("wyckoff_observed_at"),
+                        "available_at": last_feature.get("wyckoff_available_at"),
+                        "range_low": last_feature.get("wyckoff_range_low"),
+                        "range_high": last_feature.get("wyckoff_range_high"),
+                        "range_formed_at": last_feature.get("wyckoff_range_formed_at"),
+                        "buy_candidate": bool(last_feature.get("wyckoff_rule_buy", False)),
+                        "sell_evidence": bool(last_feature.get("wyckoff_rule_sell", False)),
+                        "stop": last_feature.get("wyckoff_stop"),
+                        "input_eligible": bool(last_feature.get("wyckoff_input_eligible", False)),
+                        "reason_codes": list(last_feature.get("wyckoff_reason_codes", [])),
+                        "scope": "逐日可见量价事件和候选；不代表真实机构持仓或实际成交"}
         self.timings["decision_wall_seconds"] += time.perf_counter() - started
         return items
 
@@ -264,25 +445,56 @@ class ResearchRuntime:
                     actual_device=info.get("device") if info.get("rows", 0) else None,
                     requested_device=self.requested_device)
         info.update(self.timings, research=True, usage_mode=self.mode, model_policy=self.policy, entry_policy=self.entry_policy,
+                    model_family=self.model_family,
+                    feature_profile=self.profile["name"], feature_version=self.profile["version"],
+                    feature_schema_hash=self.profile["schema_hash"], strategy_version=self.profile["strategy_version"],
+                    inference_reason_counts=dict(self.inference_reason_counts),
                     entry_parameters=self.entry_parameters, entry_plan_config_hash=self.entry_plan_config_hash,
                     cpu_workers=workers, configured_batch_size=batch_size,
                     cpu_preparation_executor="spawn_process_pool" if workers > 1 else "parent_serial",
                     cpu_replay_executor=self.cpu_replay_executor,
                     model_cache_hits=info.get("cache_hits", 0), cache_hits=self.cache_hits, cache_misses=self.cache_misses)
+        if self.model_family in {"dual", "wyckoff"}:
+            info["feature_profile"] = "wyckoff_bundle_v1" if self.model_family == "wyckoff" else "dual_bundle_v1"
+            info["expert_profiles"] = ["ma_trend_v1", "czsc_structure_v1"]
+            if self.model_family == "wyckoff":
+                info["expert_profiles"].append("wyckoff_pv_v1")
+                from my_strategy.services.czsc_wyckoff_models import get_bundle_profile
+                bundle_profile = get_bundle_profile()
+                info.update(feature_version=bundle_profile["version"],
+                            feature_schema_hash=bundle_profile["schema_hash"],
+                            feature_columns_count=len(bundle_profile["columns"]))
+                info["dual_fallback_compute"] = dict(getattr(self.predictor, "fallback_diagnostics", {}))
+                info["expert_inference"] = dict(getattr(self.predictor, "expert_diagnostics", {}))
+                info.update(wyckoff_cache_hits=self.wyckoff_cache_hits, wyckoff_cache_misses=self.wyckoff_cache_misses)
+            exits = [predictor.diagnostics for predictor in getattr(self, "exit_predictors", {}).values()]
+            info["exit_inference_rows"] = sum(entry.get("rows", 0) for entry in exits)
+            info["exit_inference_batches"] = sum(entry.get("batches", 0) for entry in exits)
+            info["exit_actual_devices"] = sorted({entry.get("device", "cpu") for entry in exits})
+            info["exit_applied"] = False
+            if self.model_family == "wyckoff":
+                policies = [predictor.diagnostics for predictor in getattr(self, "policy_predictors", {}).values()]
+                info.update(policy_inference_rows=sum(entry.get("rows", 0) for entry in policies),
+                            policy_inference_batches=sum(entry.get("batches", 0) for entry in policies),
+                            policy_actual_devices=sorted({entry.get("device", "cpu") for entry in policies}),
+                            policy_reason_counts=dict(getattr(self, "policy_reason_counts", {})), policy_applied=False)
         return info
 
 
 def analyze_research_frame(raw, *, model_run_id=None, model_fold=None, usage_mode="historical", model_policy="auto",
-                           calendar_run_id=None, device=None, db_path=None, entry_policy="legacy", position_start=None):
+                           calendar_run_id=None, device=None, db_path=None, entry_policy="legacy", position_start=None, model_family="ma_trend"):
     end = pd.Timestamp(raw.iloc[-1].date).date().isoformat()
     runtime = ResearchRuntime(end=end, model_run_id=model_run_id, model_fold=model_fold, usage_mode=usage_mode,
                               model_policy=model_policy, calendar_run_id=calendar_run_id, device=device, db_path=db_path,
-                              entry_policy=entry_policy, position_start=position_start)
+                              entry_policy=entry_policy, position_start=position_start, model_family=model_family)
     runtime.pinned_check(end)
     started = time.perf_counter()
-    item = _prepare_stock(str(raw.iloc[-1].symbol), end, runtime.market_dates, runtime.cache.get(str(raw.iloc[-1].symbol)), db_path)
+    item = _prepare_stock(str(raw.iloc[-1].symbol), end, runtime.market_dates, runtime.cache.get(str(raw.iloc[-1].symbol)), db_path, runtime.profile["name"], runtime.model_family)
     runtime.timings["preparation_wall_seconds"] += time.perf_counter() - started
     runtime.cache_hits, runtime.cache_misses = int(item["cache_hit"]), int(not item["cache_hit"])
+    if model_family == "wyckoff":
+        runtime.wyckoff_cache_hits = int(item.get("wyckoff_cache_hit", False))
+        runtime.wyckoff_cache_misses = int(not item.get("wyckoff_cache_hit", False))
     if item["data_version"] != raw.attrs["data_version"]:
         raise ValueError("分析结构与研究特征输入快照不一致")
     item = runtime.replay_batch([item])[0]
@@ -292,7 +504,7 @@ def analyze_research_frame(raw, *, model_run_id=None, model_fold=None, usage_mod
 def run_research(*, kind, symbols=None, start=None, end, initial_cash=100000, model_run_id=None,
                  model_fold=None, usage_mode="historical", model_policy="auto", calendar_run_id=None,
                  device=None, cpu_workers=None, batch_size=None, held_symbols=None,
-                 progress=None, check_cancel=None, run_callback=None, entry_policy="legacy"):
+                 progress=None, check_cancel=None, run_callback=None, entry_policy="legacy", model_family="ma_trend"):
     from my_strategy.services.czsc_batch import batch_settings
     from my_strategy.services.czsc_research import _save, _json
     from my_strategy.services.czsc_research_data import VERIFIED_SOURCES
@@ -305,9 +517,10 @@ def run_research(*, kind, symbols=None, start=None, end, initial_cash=100000, mo
     workers, size = batch_settings(cpu_workers, batch_size)
     runtime = ResearchRuntime(end=end, model_run_id=model_run_id, model_fold=model_fold, usage_mode=usage_mode,
                               model_policy=model_policy, calendar_run_id=calendar_run_id, device=device,
-                              entry_policy=entry_policy, position_start=start)
+                              entry_policy=entry_policy, position_start=start, model_family=model_family)
     runtime.pinned_check(start if kind == "backtest" else end)
     request = {"research": True, "usage_mode": usage_mode, "model_policy": model_policy,
+               "model_family": model_family,
                "model_run_id": model_run_id, "model_fold": model_fold, "calendar_run_id": runtime.calendar["run_id"],
                "start": start, "end": end, "device": device, "initial_cash": initial_cash, "symbols": symbols}
     if entry_policy != "legacy":
@@ -345,14 +558,17 @@ def run_research(*, kind, symbols=None, start=None, end, initial_cash=100000, mo
                 if not (symbol.startswith("60") and symbol.endswith(".SH") or symbol.startswith("00") and symbol.endswith(".SZ")):
                     reasons.append("unsupported_board")
                 if not eligible:
+                    model_input_ok = (runtime.profile["name"] == "ma_trend_v1" and item["data_end"] == end
+                                      and latest["model_resolution"].get("model_input_eligible", False))
+                    shadow_probability = latest.get("probability") if model_input_ok else None
                     latest = {**latest, "eligible": False, "entry_gate_passed": False, "target_weight": 0.,
-                              "model_used": False, "ml_filter_applied": False, "probability": None,
-                              "model_resolution": {**latest["model_resolution"], "probability": None,
-                                                   "applied_to_entry": False, "status": "input_veto",
+                              "model_used": False, "ml_filter_applied": False, "probability": shadow_probability,
+                              "model_resolution": {**latest["model_resolution"], "probability": shadow_probability,
+                                                   "applied_to_entry": False, "status": "rule_input_veto_shadow" if model_input_ok else "input_veto",
                                                    "reason": "; ".join(reasons), "reason_codes": reasons},
                               "agent_evidence": [dict(evidence) for evidence in latest["agent_evidence"]],
                               "basis": "本次目标日输入不满足研究条件：" + "; ".join(reasons)}
-                    latest["agent_evidence"][2].update(judgment="unavailable", probability=None, applied=False,
+                    latest["agent_evidence"][2].update(judgment="shadow" if shadow_probability is not None else "unavailable", probability=shadow_probability, applied=False,
                                                         model=latest["model_resolution"])
                     latest["agent_evidence"][3].update(judgment="veto", reasons=reasons)
                     if latest.get("entry_plan"):
@@ -362,7 +578,7 @@ def run_research(*, kind, symbols=None, start=None, end, initial_cash=100000, mo
                 rows.append(_json({**latest, "symbol": symbol, "category": category, "action": action,
                                   "candidate_action": candidate, "position_intent": action,
                                   "personal_exit_review": personal_exit, "data_end": item["data_end"], "data_version": item["data_version"],
-                                  "model_probability": latest["model_resolution"]["probability"] if eligible else None, "model_run_id": latest["model_resolution"].get("model_run_id"),
+                                  "model_probability": latest["model_resolution"]["probability"], "model_run_id": latest["model_resolution"].get("model_run_id"),
                                   "model_validated": latest["model_used"], "combined_rule_buy": bool(feature["rule_buy"]),
                                   "combined_rule_sell": bool(feature["rule_sell"]), "reference_close": float(item["raw"].iloc[-1].close),
                                   "reference_levels": {k: feature.get(k) for k in ("ma20", "ma60", "structure_low", "structure_high", "zone_low", "zone_high", "vol_ratio20")},
@@ -373,13 +589,28 @@ def run_research(*, kind, symbols=None, start=None, end, initial_cash=100000, mo
             else:
                 check()
                 try:
+                    exit_policy, entry_gate = None, None
+                    if model_family == "dual":
+                        from my_strategy.services.czsc_dual_runtime import shadow_exit_policy
+                        exit_policy = shadow_exit_policy(runtime, item["features"])
+                    elif model_family == "wyckoff":
+                        from my_strategy.services.czsc_wyckoff_runtime import shadow_exit_policy, shadow_entry_policy
+                        exit_policy = shadow_exit_policy(runtime, item["features"])
+                        entry_gate = shadow_entry_policy(runtime, item["features"])
                     account = execute_decisions(symbol, item["raw"], replay["decisions"], start, initial_cash / len(symbols),
                                                 strategy_config(), context.run_id, market_dates=runtime.market_dates,
-                                                verified_sources=VERIFIED_SOURCES, entry_policy=entry_policy)
+                                                verified_sources=VERIFIED_SOURCES, entry_policy=entry_policy,
+                                                exit_policy=exit_policy, entry_gate=entry_gate)
                     destination = context.subdir("backtests", symbol.replace(".", "_"))
                     for name in ("daily", "ledger", "rejections"):
                         _write_frame(pd.DataFrame(account[name]), destination / (name + ".csv"))
                     _save(destination / "decisions.json", replay["decisions"])
+                    if exit_policy is not None:
+                        _save(destination / "holding-snapshots.json", account["holding_snapshots"])
+                        _save(destination / "exit-diagnostics.json", account["exit_policy_diagnostics"])
+                    if entry_gate is not None:
+                        _save(destination / "entry-gate-snapshots.json", account["entry_gate_snapshots"])
+                        _save(destination / "entry-gate-diagnostics.json", account["entry_gate_diagnostics"])
                     accounts.append({**account, "symbol": symbol, "data_version": item["data_version"], "events": replay["events"]})
                 except (ValueError, FileNotFoundError) as exc:
                     failures.append({"symbol": symbol, "error": str(exc)})
@@ -399,7 +630,9 @@ def run_research(*, kind, symbols=None, start=None, end, initial_cash=100000, mo
     data_version = stable_hash(input_versions)
     from my_strategy.adapters.czsc_adapter import SOURCE_SHA256
     common = {"run_id": context.run_id, "run_context": {**context.to_dict(), "data_version": data_version}, "request": request,
-              "strategy_version": "czsc_price_volume_mlp_v1", "failures": failures, "model_run_id": model_run_id,
+              "strategy_version": runtime.profile["strategy_version"], "feature_profile": runtime.profile["name"],
+              "model_family": model_family,
+              "failures": failures, "model_run_id": model_run_id,
               "data_version": data_version, "input_versions": input_versions,
               "source_sha256": SOURCE_SHA256, "config_hash": stable_hash({"request": request, "strategy": strategy_config()}),
               "model_fold": model_fold, "usage_mode": usage_mode, "model_policy": model_policy,

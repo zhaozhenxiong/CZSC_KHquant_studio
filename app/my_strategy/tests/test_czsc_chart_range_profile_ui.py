@@ -23,6 +23,7 @@ global.getComputedStyle=()=>({getPropertyValue:()=> '#123456'});
 global.ResizeObserver=class{observe(){}};
 const frames=[];global.requestAnimationFrame=callback=>{frames.push(callback);return frames.length;};
 global.KHQuantMarkers=require(process.argv[2]);
+require(require('path').join(require('path').dirname(process.argv[1]),'wyckoff_markers.js'));
 let range={from:0,to:9},rangeChanged,rangeWrites=0;
 const scale={subscribeVisibleLogicalRangeChange(fn){rangeChanged=fn;},getVisibleLogicalRange:()=>range,
   setVisibleLogicalRange(value){range=value;rangeWrites++;rangeChanged();},fitContent(){this.setVisibleLogicalRange({from:0,to:9});},

@@ -14,6 +14,7 @@ from my_strategy.core.tz import LOCAL_TZ
 from my_strategy.services.czsc_research_features import FEATURE_COLUMNS, FEATURE_VERSION, FEATURE_SCHEMA_HASH
 from my_strategy.services.czsc_research_ml import MODEL_VERSION, LABEL_VERSION
 from my_strategy.services.czsc_research_models import ModelResolver, file_hash, model_hash
+from my_strategy.services.czsc_research_profiles import get_feature_profile
 from my_strategy.storage.czsc_model_releases import ModelReleaseStore
 
 
@@ -83,6 +84,120 @@ def models(tmp_path, monkeypatch):
         "freeze_metadata_sha256": file_hash(freeze / "metadata.json"), "freeze_policy_sha256": file_hash(freeze / "reports" / "production_freeze.json")}
     save(root / "reports" / "production_certification.json", certificate)
     return ModelReleaseStore(tmp_path / "results.db", runs), root, training, certificate
+
+
+def _bind_ma_model_fixture(models):
+    """Rebind every signed artifact, so profile tests reach semantic checks."""
+    store, root, training, certificate = models
+    profile = get_feature_profile("ma_trend_v1")
+    training["strategy_version"] = profile["strategy_version"]
+    training["config"]["feature_profile"] = profile["name"]
+    for directory in (root / "models").iterdir():
+        path = directory / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest.pop("manifest_sha256")
+        manifest.update(feature_profile=profile["name"], feature_version=profile["version"], feature_schema_hash=profile["schema_hash"])
+        manifest["schema"]["columns"] = list(profile["columns"])
+        manifest["schema_sha256"] = model_hash(manifest["schema"])
+        manifest["manifest_sha256"] = model_hash(manifest)
+        save(path, manifest)
+    save(root / "reports" / "research.json", training)
+    manifest = json.loads((root / "models" / "production" / "manifest.json").read_text(encoding="utf-8"))
+    bindings = {"feature_profile": profile["name"], "feature_schema_hash": profile["schema_hash"],
+                "strategy_version": profile["strategy_version"], "manifest_sha256": manifest["manifest_sha256"],
+                "research_config_sha256": stable_hash(training["config"])}
+    freeze_path = store.runs_root / "freeze" / "reports" / "production_freeze.json"
+    freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+    freeze.update(bindings)
+    save(freeze_path, freeze)
+    for window_record in certificate["independent_windows"]:
+        path = store.runs_root / window_record["report_path"]
+        report = json.loads(path.read_text(encoding="utf-8"))
+        report.update(bindings)
+        report["execution_audit"]["manifest_sha256"] = manifest["manifest_sha256"]
+        save(path, report)
+        window_record["sha256"] = file_hash(path)
+    certificate.update(manifest_sha256=manifest["manifest_sha256"], research_sha256=file_hash(root / "reports" / "research.json"),
+                       freeze_policy_sha256=file_hash(freeze_path))
+    save(root / "reports" / "production_certification.json", certificate)
+    return profile
+
+
+@pytest.fixture
+def ma_models(models):
+    _bind_ma_model_fixture(models)
+    return models
+
+
+def test_ma_profile_routes_and_releases_without_borrowing_legacy_identity(ma_models):
+    store, _, _, _ = ma_models
+    profile = get_feature_profile("ma_trend_v1")
+    arguments = {"feature_version": profile["version"], "feature_schema_hash": profile["schema_hash"],
+                 "feature_columns": profile["columns"], "strategy_version": profile["strategy_version"],
+                 "model_run_id": "training", "store": store}
+    assert ModelResolver(model_run_id="training", store=store).resolve("2026-10-08")["model_dir"] is None
+    assert ModelResolver(**arguments).resolve("2026-10-08")["status"] == "production_shadow"
+    release = store.promote("training", reason="independent MA ledger certification passed")
+    resolver = ModelResolver(**arguments)
+    assert not resolver.resolve("2026-10-02")["applied_to_entry"]
+    route = resolver.resolve("2026-10-08")
+    assert route["applied_to_entry"] and route["release_id"] == release["release_id"]
+    assert route["feature_profile"] == profile["name"]
+    assert ModelResolver(model_run_id="training", store=store).resolve("2026-10-08")["model_dir"] is None
+    arguments["feature_columns"] = profile["columns"][::-1]
+    mismatched = ModelResolver(**arguments)
+    assert mismatched.catalog_errors and mismatched.resolve("2026-10-08")["model_dir"] is None
+
+
+@pytest.mark.parametrize("change", ["column_order", "schema_hash", "declared_profile", "strategy_version", "missing_strategy"])
+def test_ma_signed_but_incompatible_schema_cannot_route_or_publish(ma_models, change):
+    store, root, training, _ = ma_models
+    profile = get_feature_profile("ma_trend_v1")
+    path = root / "models" / "production" / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest.pop("manifest_sha256")
+    if change == "column_order":
+        manifest["schema"]["columns"].reverse()
+        manifest["schema_sha256"] = model_hash(manifest["schema"])
+    elif change == "schema_hash":
+        manifest["feature_schema_hash"] = FEATURE_SCHEMA_HASH
+    elif change == "declared_profile":
+        training["config"]["feature_profile"] = "unknown"
+    elif change == "missing_strategy":
+        training.pop("strategy_version")
+    else:
+        training["strategy_version"] = "czsc_price_volume_mlp_v1"
+    manifest["manifest_sha256"] = model_hash(manifest)
+    save(path, manifest)
+    save(root / "reports" / "research.json", training)
+    resolver = ModelResolver(model_run_id="training", store=store, feature_version=profile["version"],
+                             feature_schema_hash=profile["schema_hash"], feature_columns=profile["columns"])
+    assert resolver.catalog_errors and resolver.resolve("2026-10-08")["model_dir"] is None
+    with pytest.raises(ValueError, match="profile"):
+        store.promote("training", reason="attempt")
+    assert not store.events() and store.active() is None
+
+
+@pytest.mark.parametrize("change", ["freeze_profile", "window_profile", "window_schema"])
+def test_ma_certification_semantics_are_checked_after_all_artifact_hashes_match(ma_models, change):
+    store, root, _, certificate = ma_models
+    if change == "freeze_profile":
+        path = store.runs_root / "freeze" / "reports" / "production_freeze.json"
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["feature_profile"] = "legacy"
+        save(path, value)
+        certificate["freeze_policy_sha256"] = file_hash(path)
+    else:
+        window_record = certificate["independent_windows"][0]
+        path = store.runs_root / window_record["report_path"]
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["feature_profile" if change == "window_profile" else "feature_schema_hash"] = "legacy"
+        save(path, value)
+        window_record["sha256"] = file_hash(path)
+    save(root / "reports" / "production_certification.json", certificate)
+    with pytest.raises(ValueError, match="bind|identity"):
+        store.promote("training", reason="attempt")
+    assert not store.events() and store.active() is None
 
 
 def test_history_routes_by_data_date_and_does_not_apply_future_aggregate_gate(models):
@@ -191,7 +306,10 @@ def test_failed_gate_or_forged_aggregate_metrics_never_updates_alias(models):
 
 
 @pytest.mark.parametrize("change", ["failed_audit", "missing_certificate", "wrong_hash", "backdated_freeze", "future_completion", "duplicate_window", "failed_independent_metrics", "wrong_window_source", "failed_window_audit", "false_freeze_timestamp"])
-def test_certification_requires_complete_current_and_independent_evidence(models, change):
+@pytest.mark.parametrize("profile_name", ["legacy", "ma_trend_v1"])
+def test_certification_requires_complete_current_and_independent_evidence(models, change, profile_name):
+    if profile_name == "ma_trend_v1":
+        _bind_ma_model_fixture(models)
     store, root, _, certificate = models
     cert_path = root / "reports" / "production_certification.json"
     if change == "failed_audit":

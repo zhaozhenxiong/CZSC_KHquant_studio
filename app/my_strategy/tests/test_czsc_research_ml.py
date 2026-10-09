@@ -105,6 +105,16 @@ def _train(data, path):
                        device="cpu", epochs=3, batch_size=32, hidden_sizes=(8, 4), min_train_rows=20, min_validation_rows=20)
 
 
+def test_linear_logistic_baseline_uses_same_purged_probability_contract(learning_data, tmp_path):
+    manifest = train_model(learning_data, ["x", "z"], tmp_path, "2024-03-29", "2024-04-01", "2024-05-31",
+                           device="cpu", epochs=3, batch_size=32, hidden_sizes=(), min_train_rows=20, min_validation_rows=20)
+    assert manifest["architecture"] == "ma_logistic" and manifest["schema"]["hidden_sizes"] == []
+    assert manifest["train_label_end"] <= "2024-03-29"
+    test = learning_data.loc[learning_data["date"] > "2024-05-31"].copy()
+    probabilities = PredictorSession(device="cpu").predict(test, tmp_path)
+    assert np.isfinite(probabilities).all() and ((probabilities > 0) & (probabilities < 1)).all()
+
+
 def test_training_preprocess_is_train_only_and_purges_actual_end(learning_data, tmp_path):
     first = _train(learning_data, tmp_path / "first")
     changed = learning_data.copy()

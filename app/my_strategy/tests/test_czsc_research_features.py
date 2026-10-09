@@ -146,6 +146,8 @@ def test_bad_input_window_is_retained_and_ineligible(clean_bars, column, value, 
     assert len(result) == len(frame)
     assert result["date"].tolist() == frame["date"].tolist()
     assert not result.iloc[150:270]["input_eligible"].any()
+    assert not result.iloc[150:270]["model_input_eligible"].any()
+    assert result.iloc[150:270]["model_reason_codes"].map(lambda reasons: reason in reasons).all()
     assert result.iloc[150:270]["reason_codes"].map(lambda reasons: reason in reasons).all()
     assert reason not in result.iloc[270]["reason_codes"]
     assert not result.iloc[150:270]["rule_buy"].any()
@@ -182,6 +184,21 @@ def test_structural_dependencies_outside_quality_window_are_not_silently_clean(c
     contaminated_structure = historical.loc[historical["reason_codes"].map(lambda reasons: "structural_input_unverified" in reasons)]
     assert len(contaminated_structure) > 0
     assert not contaminated_structure["input_eligible"].any()
+    assert contaminated_structure["model_input_eligible"].all()
+    assert contaminated_structure["model_reason_codes"].map(lambda reasons: "structural_input_unverified" not in reasons).all()
+
+
+def test_ma_model_requires_120_quality_bars_and_60_active_observations(clean_bars):
+    frame = clean_bars.iloc[:190].copy()
+    frame.loc[:99, ["volume", "amount"]] = 0
+    settings = {**strategy_config(), "research": {"quality_window_bars": 60}}
+    result = build_features(frame, settings)
+    assert result.attrs["model_quality_window_bars"] == 120
+    assert not result.iloc[:159]["model_input_eligible"].any()
+    assert "quality_warmup" in result.iloc[118]["model_reason_codes"]
+    assert "insufficient_active_history" in result.iloc[158]["model_reason_codes"]
+    assert result.iloc[159]["model_input_eligible"]
+    assert result.iloc[159]["model_active_bars_window"] == 60
 
 
 def test_unknown_nonempty_provider_is_rejected_in_current_window_and_structure(clean_bars):

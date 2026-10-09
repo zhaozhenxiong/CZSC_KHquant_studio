@@ -11,7 +11,7 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 from my_strategy.core.paths import ARTIFACT_RUNS_ROOT
 from my_strategy.core.run_context import stable_hash
@@ -73,6 +73,7 @@ def verified_checkpoint(directory: Path) -> dict[str, Any]:
 
 def checkpoint_catalog(model_run_id: str, *, runs_root: Path | None = None) -> list[dict[str, Any]]:
     from my_strategy.adapters.czsc_adapter import SOURCE_SHA256
+    from my_strategy.services.czsc_research_profiles import recognized_feature_profile
     root = identity_path(runs_root or ARTIFACT_RUNS_ROOT, model_run_id)
     training = json.loads((root / "reports" / "research.json").read_text(encoding="utf-8"))
     if training.get("run_id") != model_run_id:
@@ -96,6 +97,12 @@ def checkpoint_catalog(model_run_id: str, *, runs_root: Path | None = None) -> l
     for name in dict.fromkeys(names):
         directory = identity_path(root / "models", name)
         manifest = verified_checkpoint(directory)
+        profile = recognized_feature_profile(manifest["feature_version"], manifest["feature_schema_hash"],
+                                             manifest["schema"]["columns"], training.get("strategy_version"))
+        if (training.get("strategy_version") != profile["strategy_version"]
+                or training.get("config", {}).get("feature_profile", profile["name"]) != profile["name"]
+                or manifest.get("feature_profile", profile["name"]) != profile["name"]):
+            raise ValueError("checkpoint and research feature profile binding mismatch")
         if manifest.get("label_contract", {}).get("calendar_hash") != stable_hash(dates):
             raise ValueError("checkpoint and research calendar binding mismatch")
         if manifest.get("data_version") != training.get("data_version"):
@@ -109,6 +116,7 @@ def checkpoint_catalog(model_run_id: str, *, runs_root: Path | None = None) -> l
             "label_version": manifest["label_version"], "train_label_end": manifest["train_label_end"],
             "validation_label_end": manifest["validation_label_end"], "validation_end": manifest["validation_end"],
             "feature_version": manifest["feature_version"], "feature_schema_hash": manifest["feature_schema_hash"],
+            "feature_profile": profile["name"],
             "strategy_version": training.get("strategy_version"), "data_version": training.get("data_version"),
             "calendar_run_id": calendar["run_id"], "calendar_hash": calendar["hash"],
             "config_hash": metadata.get("config_hash") or stable_hash(training.get("config", {})),
@@ -127,9 +135,20 @@ class ModelResolver:
                  model_run_id: str | None = None, checkpoint: str | None = None,
                  calendar_run_id: str | None = None, store=None, runs_root: Path | None = None,
                  feature_version: str | None = None, feature_schema_hash: str | None = None,
+                 feature_columns: Sequence[str] | None = None,
                  strategy_version: str | None = None) -> None:
-        from my_strategy.services.czsc_research_features import FEATURE_COLUMNS, FEATURE_VERSION, FEATURE_SCHEMA_HASH
+        from my_strategy.services.czsc_research_profiles import get_feature_profile
         from my_strategy.storage.czsc_model_releases import ModelReleaseStore
+        default_profile = get_feature_profile()
+        requested_version = feature_version or default_profile["version"]
+        requested_hash = feature_schema_hash or default_profile["schema_hash"]
+        requested_columns = list(feature_columns) if feature_columns is not None else None
+        if requested_columns is None:
+            for name in ("legacy", "ma_trend_v1"):
+                profile = get_feature_profile(name)
+                if (requested_version, requested_hash) == (profile["version"], profile["schema_hash"]):
+                    requested_columns = profile["columns"]
+                    break
         if usage_mode not in {"production", "historical", "retrospective"} or model_policy not in {"auto", "pinned"}:
             raise ValueError("invalid model usage mode or selection policy")
         if model_policy == "pinned" and (not model_run_id or not checkpoint):
@@ -153,12 +172,12 @@ class ModelResolver:
             try:
                 entries = checkpoint_catalog(root.name, runs_root=self.runs_root)
                 for entry in entries:
-                    if (entry["feature_version"] != (feature_version or FEATURE_VERSION)
-                            or entry["feature_schema_hash"] != (feature_schema_hash or FEATURE_SCHEMA_HASH)
+                    if (entry["feature_version"] != requested_version
+                            or entry["feature_schema_hash"] != requested_hash
                             or (strategy_version is not None and entry["strategy_version"] != strategy_version)
                             or (calendar_run_id is not None and entry["calendar_run_id"] != calendar_run_id)):
                         continue
-                    if entry["feature_schema_hash"] == FEATURE_SCHEMA_HASH and entry["manifest"]["schema"]["columns"] != list(FEATURE_COLUMNS):
+                    if requested_columns is None or entry["manifest"]["schema"]["columns"] != requested_columns:
                         raise ValueError("checkpoint columns mismatch bound feature schema")
                     self.catalog.append(entry)
             except (ValueError, KeyError, OSError, TypeError) as exc:

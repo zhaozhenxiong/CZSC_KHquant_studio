@@ -2,8 +2,8 @@
 
 This module contains low-level OHLCV validation and a higher-level
 ``DataQualityChecker`` that produces a structured ``DataQualityReport`` for a
-universe of stocks over a date range.  Reports are persisted into the processed
-SQLite warehouse.
+universe of stocks over a date range. Issues are persisted in the raw SQLite
+warehouse, with complete reports stored in RunContext validation artifacts.
 
 No future information is used: all checks operate on the supplied historical bars
 and, when available, a point-in-time basic stock table.
@@ -22,6 +22,7 @@ import pandas as pd
 from my_strategy.data_manager.config import load_data_config
 from my_strategy.data_manager.stock_pool import normalize_stock_code
 from my_strategy.storage.access_layer import get_data_access
+from my_strategy.core.run_context import create_run_context
 
 logger = logging.getLogger(__name__)
 
@@ -189,13 +190,13 @@ class DataQualityChecker:
         return report
 
     def save_report(self, report: DataQualityReport) -> dict[str, Any]:
-        """Persist the report into the processed SQLite warehouse."""
+        """Persist source quality issues in raw SQLite and a standalone run report."""
         issues_df = report.to_issues_dataframe()
         if issues_df.empty:
             logger.info("No quality issues to persist for run_id=%s", report.run_id)
         inserted_issues = 0
         if self.storage.settings.write_db:
-            with self.storage.processed.connect() as conn:
+            with self.storage.raw.transaction() as conn:
                 for _, row in issues_df.iterrows():
                     payload = {
                         "issue_id": f"{report.run_id}:{row['entity_id']}:{row['category']}:{_stable_hash(row['message'])}",
@@ -224,31 +225,35 @@ class DataQualityChecker:
                         payload,
                     )
                     inserted_issues += 1
-        artifact_id = None
-        if issues_df.empty:
-            issues_bytes = b""
-        else:
-            issues_bytes = issues_df.to_csv(index=False).encode("utf-8")
-        artifact_id = self.storage.put_artifact_bytes(
-            namespace="data_quality",
-            kind="csv",
-            name=report.run_id,
-            payload=issues_bytes,
-            metadata={
-                "run_id": report.run_id,
-                "checked_at": report.checked_at,
-                "start_date": report.start_date,
-                "end_date": report.end_date,
-                "stocks": len(report.stocks),
-                "issues": len(report.issues),
-                "summary": json.dumps(report.summary, ensure_ascii=False, sort_keys=True, default=str),
-            },
+        context = create_run_context(
+            task="data-quality-report", run_id=report.run_id, as_of_date=report.end_date,
+            stocks=report.stocks, start_date=report.start_date, end_date=report.end_date,
+            scope="implementation", source="cli",
+            config={"raw_db": str(self.storage.settings.raw_db), "checked_at": report.checked_at},
         )
+        validation = context.subdir("validation")
+        csv_path = validation / "data_quality_issues.csv"
+        csv_tmp = csv_path.with_name(f"{csv_path.name}.{__import__('os').getpid()}.tmp")
+        issues_df.to_csv(csv_tmp, index=False, encoding="utf-8")
+        csv_tmp.replace(csv_path)
+        json_path = validation / "data_quality_report.json"
+        _write_json_atomic(json_path, {
+            "run_id": report.run_id, "checked_at": report.checked_at,
+            "start_date": report.start_date, "end_date": report.end_date,
+            "stocks": report.stocks, "stock_stats": report.stock_stats,
+            "summary": report.summary, "issues": [issue.to_record() for issue in report.issues],
+        })
+        context.write_metadata({"status": "completed", "data_quality": {
+            "report_json": str(json_path), "report_csv": str(csv_path),
+            "raw_db": str(self.storage.settings.raw_db), "inserted_issues": inserted_issues,
+            "issues": len(report.issues), "has_errors": report.has_errors(), "summary": report.summary,
+        }})
         return {
             "run_id": report.run_id,
             "inserted_issues": inserted_issues,
-            "artifact_id": artifact_id,
-            "processed_db": str(self.storage.settings.processed_db),
+            "artifact_id": f"data_quality:csv:{report.run_id}",
+            "artifact_path": str(csv_path), "report_path": str(json_path),
+            "raw_db": str(self.storage.settings.raw_db),
         }
 
     def _load_basic(self, stocks: list[str]) -> pd.DataFrame:

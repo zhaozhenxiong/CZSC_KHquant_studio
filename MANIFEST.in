@@ -1,4 +1,4 @@
-include README.md INSTALL_NATIVE.md runtime-manifest.json setup.py install.py install.bat install.command khquant-native.bat khquant-native.sh khquant.sh .env.example .env.native.example
+include README.md INSTALL_NATIVE.md RELEASE_NOTES.md runtime-manifest.json setup.py install.py install.bat install.command khquant-native.bat khquant-native.sh khquant.sh .env.example .env.native.example
 include app/czsc-source-manifest.json app/build_czsc_runtime.py app/requirements-czsc-*.lock
 recursive-include app/vendor/czsc *
 include app/vendor/wheels/wheel-index.json

@@ -22,7 +22,7 @@ class SnapshotSqliteDatabasesTests(unittest.TestCase):
     def test_discovery_uses_canonical_database_whitelist(self) -> None:
         self.assertTrue(all(not path.is_absolute() for path in CANONICAL_DATABASE_PATHS))
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
+            root = Path(temp).resolve()
             marker = root / "my_strategy" / "core" / "paths.py"
             marker.parent.mkdir(parents=True, exist_ok=True)
             marker.write_text("# marker\n", encoding="utf-8")
@@ -38,7 +38,7 @@ class SnapshotSqliteDatabasesTests(unittest.TestCase):
 
     def test_discovery_honors_external_runtime_paths_from_repo_or_app(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
+            root = Path(temp).resolve()
             repo = root / "repo"
             app = repo / "app"
             marker = app / "my_strategy" / "core" / "paths.py"

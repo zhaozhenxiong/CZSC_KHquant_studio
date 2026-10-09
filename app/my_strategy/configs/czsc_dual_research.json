@@ -1,0 +1,29 @@
+{
+  "version": "czsc_dual_experts_v1",
+  "publication_allowed": false,
+  "observed_windows_diagnostic_only": true,
+  "independent_window": {"start": "2026-10-12", "end": "2026-12-31", "status": "future_unobserved", "frozen_at": "2026-10-09T15:20:30+08:00"},
+  "feature_start": "2023-01-01",
+  "horizon": 10,
+  "initial_cash": 100000,
+  "seed": 42,
+  "epochs": 20,
+  "batch_size": 2048,
+  "ma_hidden_sizes": [32, 16],
+  "min_train_rows": 100,
+  "min_validation_rows": 30,
+  "threshold_grid": [0.5, 0.55, 0.6, 0.65],
+  "threshold_min_rows": 30,
+  "default_threshold": 0.55,
+  "exit_enabled": true,
+  "exit_threshold": 0.55,
+  "ledger_dependence_bars": 120,
+  "ledger_bootstrap_blocks": [160, 240],
+  "development_windows": [
+    {"name": "2025Q2", "train_end": "2024-12-31", "validation_start": "2025-01-01", "validation_end": "2025-03-31", "test_start": "2025-04-01", "test_end": "2025-06-30"},
+    {"name": "2025Q4", "train_end": "2025-06-30", "validation_start": "2025-07-01", "validation_end": "2025-09-30", "test_start": "2025-10-01", "test_end": "2025-12-31"},
+    {"name": "2026Q2", "train_end": "2025-12-31", "validation_start": "2026-01-01", "validation_end": "2026-03-31", "test_start": "2026-04-01", "test_end": "2026-06-30"},
+    {"name": "2026Q3", "train_end": "2026-03-31", "validation_start": "2026-04-01", "validation_end": "2026-06-30", "test_start": "2026-07-01", "test_end": "2026-09-30"}
+  ],
+  "production": {"train_end": "2026-06-30", "validation_start": "2026-07-01", "validation_end": "2026-09-30"}
+}
