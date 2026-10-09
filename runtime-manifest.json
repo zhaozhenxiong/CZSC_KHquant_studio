@@ -41,10 +41,10 @@
     "mps"
   ],
   "platform_verification": {
-    "windows_x64_cpu": "requires_0_1_1_ci_execution",
+    "windows_x64_cpu": "verified_0_1_1_bundled_native_and_ci_installed_application_wheel",
     "windows_x64_cuda": "requires_0_1_1_cuda_verification",
     "macos_arm64_mps": "verified_0_1_1_installed_wheel_real_hardware_smoke",
-    "linux_x64_cpu": "requires_0_1_1_ci_execution",
+    "linux_x64_cpu": "requires_final_source_ci_execution_and_platform_native_asset",
     "macos_arm64_cpu": "verified_0_1_1_installed_wheel_cpu_smoke"
   },
   "local_verification_date": "2026-10-10",
@@ -64,8 +64,29 @@
     "local_verification_date": "2026-10-06"
   },
   "verification_scope": {
-    "application": "isolated installed wheel; source imports excluded",
-    "dependencies": "reused existing locked Python 3.12 dependencies and frozen native CZSC",
-    "input": "synthetic installation fixture; no financial certification"
+    "application": "installed wheel; source imports excluded",
+    "input": "synthetic installation fixture; no financial certification",
+    "macos_arm64_cpu_mps": {
+      "dependencies": "reused existing locked Python 3.12 dependencies and frozen native CZSC",
+      "release_application_wheel_sha256": "339de97efcc43e85d81e2bdb7db58b083ce9ffdab68b11fbe196fbdb3c3d29fc",
+      "runtime_payload_tree_sha256": "b6932ec6197df77e893cc011ae5c564c814d677f123fdb1d06a3a15a8f3ab287",
+      "installation_report_sha256": {
+        "cpu": "6245728d1755048b71958058de84bec07ef8d643c13632e9f0ebf8f7d0c9a620",
+        "mps": "f76bc416586c3f0c7942ada6c87aecb34755e1e2702621238b349d74e7a55813"
+      }
+    },
+    "windows_x64_cpu": {
+      "dependencies": "new CI virtual environment; locked dependencies downloaded; bundled frozen native asset installed",
+      "application": "CI platform-built installed wheel from the verified source commit",
+      "ci_application_wheel_sha256": "c467e84f55b77d68754fbf2ec000583fbec32273e1b128ba5b0e2caaca066265",
+      "native_wheel_sha256": "d11d87df958f2f909caf597c754efc4d718aee0623986d9e890dd95609b5f1e0",
+      "source_commit": "edc2808274cdcc48f36f3eb8a99861bce701efe1",
+      "verification_url": "https://github.com/zhaozhenxiong/CZSC_KHquant_studio/actions/runs/37965437521"
+    },
+    "linux_x64_cpu": {
+      "previous_source_cpu_ci": "https://github.com/zhaozhenxiong/CZSC_KHquant_studio/actions/runs/37963061673",
+      "previous_source_commit": "4c5312c3a7a37cec4219897330a01e253427a0c3",
+      "scope": "earlier source snapshot passed; final source and downloadable Linux native asset not certified here"
+    }
   }
 }
