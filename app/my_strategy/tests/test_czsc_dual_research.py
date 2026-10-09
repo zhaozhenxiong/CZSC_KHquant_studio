@@ -222,6 +222,46 @@ def _catalog_fixture(frame, monkeypatch):
     return context, report, report_path, records
 
 
+def test_crlf_calendar_clone_binds_actual_bytes_and_rejects_tampering(learning_frame, monkeypatch):
+    write_text = Path.write_text
+
+    def windows_write_text(path, data, encoding=None, errors=None, newline=None):
+        return write_text(path, data, encoding=encoding, errors=errors,
+                          newline="\r\n" if newline is None else newline)
+
+    # Exercise the actual atomic JSON writer with Windows newline translation.
+    monkeypatch.setattr(Path, "write_text", windows_write_text)
+    context, report, _, _ = _catalog_fixture(learning_frame, monkeypatch)
+    calendar_path = Path(report["calendar"]["path"])
+    original = calendar_path.read_bytes()
+    assert b"\r\n" in original
+    assert report["calendar"]["file_sha256"] == _file_hash(calendar_path)
+    good = DualResolver(usage_mode="historical", model_run_id=context.run_id)
+    assert good.catalog and good.cache and good.market_dates, good.catalog_errors
+
+    calendar_path.write_bytes(original + b"\r\n")
+    bad = DualResolver(usage_mode="historical", model_run_id=context.run_id)
+    assert not bad.catalog and not bad.cache and not bad.calendar and not bad.market_dates
+    assert "cloned calendar file hash mismatch" in bad.catalog_errors[0]["error"]
+
+
+def test_legacy_lf_calendar_clone_without_byte_binding_remains_compatible(learning_frame, monkeypatch):
+    write_text = Path.write_text
+
+    def lf_write_text(path, data, encoding=None, errors=None, newline=None):
+        return write_text(path, data, encoding=encoding, errors=errors,
+                          newline="\n" if newline is None else newline)
+
+    monkeypatch.setattr(Path, "write_text", lf_write_text)
+    context, report, report_path, _ = _catalog_fixture(learning_frame, monkeypatch)
+    calendar_path = Path(report["calendar"]["path"])
+    assert b"\n" in calendar_path.read_bytes() and b"\r\n" not in calendar_path.read_bytes()
+    report["calendar"].pop("file_sha256")
+    report_path.write_text(json.dumps(report))
+    good = DualResolver(usage_mode="historical", model_run_id=context.run_id)
+    assert good.catalog and good.cache and good.market_dates, good.catalog_errors
+
+
 def test_future_calendar_tampering_keeps_entire_run_cache_uncommitted(learning_frame, monkeypatch):
     context, report, path, _ = _catalog_fixture(learning_frame, monkeypatch)
     good = DualResolver(usage_mode="historical", model_run_id=context.run_id)
