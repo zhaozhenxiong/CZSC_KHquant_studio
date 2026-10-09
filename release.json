@@ -1,0 +1,16 @@
+{
+  "version": "0.1.0",
+  "git_revision": "4e76ee0391b8d7ad85a8ced02a35d47d674583f0",
+  "workspace_changes_included": true,
+  "native_wheels": [
+    "czsc-1.0.1-cp310-abi3-win_amd64.whl"
+  ],
+  "contains_market_data": false,
+  "contains_personal_data": false,
+  "platform_verification": {
+    "windows_x64_cpu": "verified_clean_source_and_wheel_install",
+    "windows_x64_cuda": "verified_existing_runtime_and_real_input_smoke",
+    "macos_arm64_mps": "requires_real_hardware_verification",
+    "linux_x64_cpu": "requires_ci_execution"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "skill_name": "khquant-ai-agent",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "更新行情后按CZSC扫描当前股票池。",
+      "expected_output": "核验目标日与预热覆盖，展示已确认事件和失败标的，记录真实行情截止。",
+      "files": [],
+      "assertions": [
+        "Uses local raw input and target-date coverage",
+        "Uses CZSC current strategy and RunContext",
+        "Shows failures and actual data end"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "CZSC结构图回放到指定日期并回测。",
+      "expected_output": "as_of先截断输入，确认时间与结构锚点分开；次日BrokerSimulator执行，图上标记来自实际Ledger。",
+      "files": [],
+      "assertions": [
+        "No final-structure historical backfill",
+        "Only closed higher periods contribute",
+        "Trade markers originate from actual ledger"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "完成网页六入口验收并切换8124。",
+      "expected_output": "检查结构/扫描/回测/关注/持仓/任务，关注与手动持仓持久保存、缺价提示、明暗及移动布局；检查运行中任务，只重启核实归属的进程，验证当前API与静态资源。",
+      "files": [],
+      "assertions": [
+        "Uses six current views and persistent personal data",
+        "Checks real browser and exact process",
+        "Old routes remain unavailable"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "全部V2和旧模型退役，不要求旧报告兼容。",
+      "expected_output": "按精确源码与派生清单删除，保留可复用原始行情及历史AI审计；新运行无旧库依赖。",
+      "files": [],
+      "assertions": [
+        "Respects user retirement authorization",
+        "Checks exact targets and boundaries",
+        "Does not introduce legacy readers"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "打包CZSC系统到另一台电脑。",
+      "expected_output": "携带冻结来源与校验、原始库、新CZSC数据库、关注/手动持仓和运行产物；SQLite一致快照，新环境安装，不复制venv或旧模型。",
+      "files": [],
+      "assertions": [
+        "Uses SQLite backup API",
+        "Preserves current source manifest",
+        "Excludes secrets and old derived artifacts"
+      ]
+    }
+  ]
+}

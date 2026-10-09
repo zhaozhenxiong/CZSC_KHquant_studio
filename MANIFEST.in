@@ -1,0 +1,19 @@
+include README.md INSTALL_NATIVE.md runtime-manifest.json setup.py install.py install.bat install.command khquant-native.bat khquant-native.sh khquant.sh .env.example .env.native.example
+include app/czsc-source-manifest.json app/build_czsc_runtime.py app/requirements-czsc-*.lock
+recursive-include app/vendor/czsc *
+include app/vendor/wheels/wheel-index.json
+recursive-include app/my_strategy *.py
+recursive-include app/my_strategy/configs *.json *.yaml
+recursive-include app/my_strategy/web_dashboard/static *
+recursive-include app/my_strategy/scripts/templates *
+recursive-include app/my_strategy/agent_prompts *
+prune app/vendor/czsc/target
+prune app/my_strategy/data
+prune app/my_strategy/artifacts
+prune app/my_strategy/logs
+prune app/my_strategy/knowledge_base
+prune app/my_strategy/knowledge_base_system
+prune app/my_strategy/skills
+prune app/my_strategy/third_party_sources
+prune app/my_strategy/tests
+global-exclude __pycache__ *.py[cod] .env *.db *.sqlite *.sqlite3 *.pt *.pth *.whl *-wal *-shm

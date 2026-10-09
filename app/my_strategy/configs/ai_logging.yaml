@@ -1,0 +1,20 @@
+version: 1
+knowledge_base: my_strategy/knowledge_base
+changelog: AI_CHANGELOG.md
+capture:
+  git_status: true
+  git_diff_stat: true
+  git_diff: true
+  command_output: true
+  environment:
+    - PYTHONPATH
+    - CONDA_DEFAULT_ENV
+    - CUDA_VISIBLE_DEVICES
+limits:
+  max_diff_chars: 200000
+  max_command_output_chars: 50000
+redact_patterns:
+  - "(?i)(api[_-]?key\\s*[=:]\\s*)\\S+"
+  - "(?i)(token\\s*[=:]\\s*)\\S+"
+  - "(?i)(password\\s*[=:]\\s*)\\S+"
+  - "(?i)(cookie\\s*[=:]\\s*)\\S+"

@@ -1,0 +1,8 @@
+name: khquant-czsc
+services:
+  khquant-cli:
+    build: .
+    volumes:
+      - ${KHQUANT_DATA_ROOT:-./my_strategy/data}:/khquant-data
+      - ${KHQUANT_ARTIFACT_ROOT:-./my_strategy/artifacts}:/khquant-artifacts
+    command: [doctor, --check-write, --strict, --json]

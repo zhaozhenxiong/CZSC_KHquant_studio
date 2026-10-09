@@ -1,0 +1,12 @@
+{
+  "version": "czsc_entry_plan_v1",
+  "default_policy": "legacy",
+  "valid_for_sessions": 1,
+  "risk": {
+    "max_ma20_atr": 2.0,
+    "max_point_age_bars": 10,
+    "risk_fraction": 0.01,
+    "stop_atr_buffer": 0.25
+  },
+  "risk_parameters_status": "experimental_hypotheses_not_validated_return_improvement"
+}

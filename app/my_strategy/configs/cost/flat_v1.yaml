@@ -1,0 +1,10 @@
+schema_id: cost-model-config-v1
+# 历史平成本模型：固定 5bp/边滑点，与 2026-09-03 之前的所有回测口径一致。
+# 用作复现基线——通过 KHQUANT_COST_MODEL_CONFIG 指向本文件即可钉回旧口径。
+version: flat_v1
+commission: 0.0003
+stamp_tax: 0.0005
+slippage: 0.0005
+min_commission: 5.0
+missing_amount_policy: flat
+impact_tiers: []

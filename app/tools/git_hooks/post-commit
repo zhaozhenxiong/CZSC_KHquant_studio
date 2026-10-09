@@ -1,0 +1,10 @@
+#!/bin/sh
+# KHQuant post-commit hook: append commit metadata to the Obsidian knowledge base.
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+PYTHON="${PYTHON:-python}"
+SCRIPT="$ROOT/my_strategy/scripts/post_commit_note.py"
+
+if [ -f "$SCRIPT" ]; then
+  "$PYTHON" "$SCRIPT" >/dev/null 2>&1 || true
+fi
+exit 0

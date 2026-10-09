@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
+  <title>KHQuant · 结构研究</title><link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/css/workbench.css">
+  <script src="/static/vendor/lightweight-charts/lightweight-charts.standalone.production.js" defer></script>
+  <script src="/static/js/chart_markers.js" defer></script>
+  <script src="/static/js/workbench.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到研究区</a>
+  <header class="app-header">
+    <a class="brand" href="#analysis"><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M3 22 10 8 17 17 27 4"/><path d="M3 27H27"/></svg><span>KHQuant<small>结构研究</small></span></a>
+    <nav aria-label="主要导航"><a href="#analysis" data-route="analysis">结构分析</a><a href="#scan" data-route="scan">全市场扫描</a><a href="#backtest" data-route="backtest">策略回测</a><a href="#watchlist" data-route="watchlist">我的关注</a><a href="#holdings" data-route="holdings">我的持仓</a><a href="#data" data-route="data">数据与任务</a></nav>
+    <button id="theme-toggle" class="quiet" type="button" aria-label="切换明暗主题">暗色</button>
+  </header>
+  <div class="data-strip"><span id="connection-state" class="status-dot">连接中</span><span>行情截止 <strong id="latest-date">—</strong></span><span id="coverage-label">等待数据检查</span><a href="#data">查看数据</a></div>
+  <main id="main" tabindex="-1">
+    <div id="page-error" class="error-banner" role="alert" hidden><span></span><button type="button" aria-label="关闭错误提示">关闭</button></div>
+    <section id="view-analysis" class="view" aria-labelledby="analysis-title">
+      <div class="page-heading"><div><h1 id="analysis-title">结构分析</h1><p>查看可知结构、均线量价与 ML 研究判断。</p></div><span id="analysis-state" class="subtle">选择股票开始分析</span></div>
+      <form id="analysis-form" class="toolbar">
+        <label class="symbol-field">股票<input id="analysis-symbol" name="symbol" list="symbol-options" placeholder="代码或名称" autocomplete="off" required></label><datalist id="symbol-options"></datalist>
+        <label>开始<input id="analysis-start" type="date" name="start" value="2026-01-01"></label><label>结束<input id="analysis-end" type="date" name="end"></label>
+        <button type="submit" class="primary">分析结构</button><button id="send-backtest" type="button">用此股票回测</button>
+        <div class="research-controls"><label>策略<select id="analysis-mode"><option value="research">缠论辅助结构＋量价＋ML研究</option><option value="structure">当前结构规则基线</option></select></label><label>入场规则<select id="analysis-entry-policy"><option value="fresh">有效买点研究</option><option value="legacy">原目标仓位对照</option><option value="risk">价格与风险实验</option></select></label><label>使用方式<select id="analysis-usage-mode"><option value="historical">历史滚动研究</option><option value="production">当前生产判断</option><option value="retrospective">最新模型研究历史图</option></select></label><label>模型选择<select id="analysis-model-policy"><option value="auto">自动按日期</option><option value="pinned">固定检查点</option></select></label><label>研究模型<select id="analysis-model" disabled><option value="">请选择固定模型</option></select></label><label>检查点<select id="analysis-checkpoint" disabled><option value="">自动按日期匹配</option></select></label><label>计算设备<select id="analysis-device"><option value="auto">自动选择</option><option value="cpu">CPU</option></select></label></div>
+      </form>
+      <p id="analysis-checkpoint-help" class="form-note" aria-live="polite"></p>
+      <p id="analysis-entry-policy-help" class="form-note entry-policy-help" aria-live="polite"></p><p id="analysis-compute-status" class="form-note" aria-live="polite"></p>
+      <div class="analysis-workspace">
+        <div class="chart-panel">
+          <div class="chart-toolbar"><div class="segmented" aria-label="K线周期"><button type="button" data-frequency="日线" aria-pressed="true">日线</button><button type="button" data-frequency="周线" aria-pressed="false">周线</button><button type="button" data-frequency="月线" aria-pressed="false">月线</button></div><div class="layers" aria-label="图层"><label><input type="checkbox" id="layer-ma" checked>均线结构</label><label><input type="checkbox" id="layer-boll" checked>布林带</label><label><input type="checkbox" id="layer-chips" checked>70%筹码估算</label><label><input type="checkbox" id="layer-fractals" checked>分型</label><label><input type="checkbox" id="layer-pens" checked>笔</label><label><input type="checkbox" id="layer-zones" checked>中枢</label><label><input type="checkbox" id="layer-divergences" checked>背驰参考</label><label><input type="checkbox" id="layer-signals" checked>买卖意图</label><label><input type="checkbox" id="layer-trades" checked>实际成交</label><label><input type="checkbox" id="layer-volume">成交量</label></div></div>
+          <div class="chart-caption"><strong id="chart-symbol">尚未选择股票</strong><span id="chart-information">—</span><div class="line-legend"><span><i></i>已确认</span><span><i class="pending"></i>形成中</span></div></div>
+          <div class="structure-legend" aria-label="分型、中枢和背驰方向说明"><span class="valuation-loss">▼ 顶分型 / 顶背驰</span><span class="valuation-gain">▲ 底分型 / 底背驰</span><span class="subtle">● 形成中分型</span><span class="valuation-gain"><i></i>上行中枢</span><span class="valuation-loss"><i></i>下行中枢</span><span class="subtle"><i></i>震荡中枢</span><span class="subtle">背驰为原生五笔形态参考，非买卖确认。</span></div>
+          <div class="trade-legend" aria-label="买卖标记说明"><span class="valuation-gain">▲ 买入意图</span><span class="valuation-loss">▼ 卖出意图</span><span class="valuation-gain">● 买入成交</span><span class="valuation-loss">■ 卖出成交</span><span id="marker-summary" class="subtle">意图来自规则事件，成交来自实际回测账本。</span></div>
+          <p id="chip-profile-caption" class="chip-profile-caption" hidden></p><div class="chart-stage"><div id="analysis-chart" class="chart-host"><svg id="zone-overlay" class="zone-overlay" aria-hidden="true"></svg><div id="analysis-empty" class="chart-empty"><strong>从一只股票开始</strong><span>选择代码与日期后，查看结构和确认依据。</span></div></div><aside id="chip-profile" class="chip-profile" aria-label="右侧筹码量价估算" hidden><svg id="chip-profile-overlay" role="img" aria-label="120日成交量加权价位分布"></svg></aside></div>
+          <div class="chart-foot"><span id="crosshair-value">拖动平移 · 滚轮缩放</span><a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">图表由 TradingView Lightweight Charts™ 提供</a></div>
+          <div id="indicator-readout" class="indicator-readout" aria-label="均线、布林带和筹码估算数值" hidden><p id="indicator-context" class="subtle"></p><div id="indicator-ma" class="indicator-values"></div><p id="indicator-boll"></p><p id="indicator-chips"></p><p class="indicator-note">MA/BOLL使用所选周期；日线120根成交量加权价位估算，非真实持仓筹码；不影响策略。</p></div>
+          <p id="marker-details" class="marker-details subtle" aria-live="polite">移到买卖标记所在K线，查看原始日期与周期闭合日期。</p>
+          <div class="time-window" aria-label="图表显示区间"><label>显示区间<input id="chart-range-start" type="date" aria-label="显示区间开始日期" disabled></label><span>至</span><label><span class="sr-only">结束日期</span><input id="chart-range-end" type="date" aria-label="显示区间结束日期" disabled></label><button id="chart-range-apply" type="button" disabled>显示区间</button><div class="range-zoom"><button id="chart-zoom-in" type="button" aria-label="放大时间区间" disabled>＋ 放大</button><button id="chart-zoom-out" type="button" aria-label="缩小时间区间" disabled>− 缩小</button><button id="chart-range-reset" type="button" disabled>全部</button></div><span id="chart-range-summary" class="subtle" role="status"></span></div>
+          <details class="replay-controls"><summary>按历史时点重新判断</summary><div class="replay-bar"><span>信息截止</span><button id="replay-prev" type="button" aria-label="上一根K线" disabled>上一根</button><input id="replay-slider" type="range" min="0" max="0" value="0" aria-label="回放时点" disabled><button id="replay-next" type="button" aria-label="下一根K线" disabled>下一根</button><input id="replay-date" type="date" aria-label="回放截止日期" disabled><button id="replay-reset" type="button" disabled>回到最新</button></div></details>
+        </div>
+        <aside class="event-panel" aria-labelledby="events-title"><div class="panel-heading"><h2 id="events-title">事件与依据</h2><span id="event-count">0</span></div><p id="event-context" class="subtle">仅展示服务返回的事件。</p><div id="analysis-research-evidence" class="analysis-research-evidence" hidden></div><details id="analysis-caveats" class="research-caveats" open hidden><summary>研究口径与警告</summary><div class="diagnostics"></div></details><details class="structure-details"><summary>最近结构的确认时间</summary><div id="structure-list"></div></details><details id="divergence-details" class="structure-details" hidden><summary>背驰参考的可见时间</summary><p class="subtle">原生五笔形态参考，非买卖确认；不改变策略。</p><div id="divergence-list"></div></details><div id="event-list" class="event-list" tabindex="0" role="region" aria-label="规则事件列表"><div class="empty-copy">尚无分析结果。</div></div></aside>
+      </div>
+    </section>
+    <section id="view-scan" class="view" aria-labelledby="scan-title" hidden>
+      <div class="page-heading"><div><h1 id="scan-title">全市场扫描</h1><p>查看辅助结构、量价与入场计划，区分新入场和理论持仓。</p></div><button id="start-scan" form="scan-form" type="submit" class="primary">开始扫描</button></div>
+      <form id="scan-form" class="work-form"><label class="wide">股票池<textarea id="scan-symbols" rows="2" placeholder="留空扫描有效股票池；或填写代码，以逗号或空格分隔"></textarea></label><label>开始<input id="scan-start" type="date" value="2026-01-01"></label><label>结束<input id="scan-end" type="date"></label><label>计算设备<select id="scan-device"><option value="auto">自动选择</option><option value="cpu">CPU</option></select></label><label>策略<select id="scan-mode"><option value="research">缠论辅助结构＋量价＋ML研究</option><option value="structure">当前结构规则基线</option></select></label><label>入场规则<select id="scan-entry-policy"><option value="fresh">有效买点研究</option><option value="legacy">原目标仓位对照</option><option value="risk">价格与风险实验</option></select></label><label>使用方式<select id="scan-usage-mode"><option value="historical">历史滚动研究</option><option value="production">当前生产判断</option></select></label><label>模型选择<select id="scan-model-policy"><option value="auto">自动按日期</option><option value="pinned">固定检查点</option></select></label><label>研究模型<select id="scan-model" disabled><option value="">请选择固定模型</option></select></label><label>检查点<select id="scan-checkpoint" disabled><option value="">自动按日期匹配</option></select></label></form>
+      <p id="scan-checkpoint-help" class="form-note" aria-live="polite"></p>
+      <p id="scan-entry-policy-help" class="form-note entry-policy-help" aria-live="polite"></p>
+      <div class="table-toolbar"><p id="research-status" class="form-note" aria-live="polite">正在读取研究模型与交易日历状态…</p><div><button id="refresh-research" type="button">刷新研究状态</button><button id="start-research_train" type="button" disabled>训练研究模型</button></div></div>
+      <p class="form-note">研究模型按固定时间窗口训练与评估。未通过至少三个样本外窗口门槛时，概率仅作影子观察；多角色同意不能换算为成功概率。训练使用完整可靠历史，扫描开始日期只控制展示。</p>
+      <p id="research-training-result" class="form-note" hidden></p><div id="research-evaluation" class="table-wrap" hidden></div><div id="research_train-progress" class="inline-progress" aria-live="polite" hidden></div>
+      <p id="scan-compute-status" class="form-note" aria-live="polite">正在检查 PyTorch 和计算设备…</p><p id="scan-compute-result" class="form-note" hidden></p>
+      <p id="scan-compute-plan" class="form-note" aria-live="polite">结构识别在 CPU；选择 GPU 后，批量信号运算使用所选设备。</p>
+      <div id="scan-progress" class="inline-progress" aria-live="polite" hidden></div>
+      <div class="table-toolbar"><div><h2>扫描结果 <span id="scan-count" class="subtle">0</span></h2><span id="scan-coverage" class="subtle">尚未运行</span><p id="scan-research-result" class="form-note" hidden></p></div><div class="table-filters"><label class="sr-only" for="scan-search">筛选股票</label><input id="scan-search" placeholder="筛选代码、名称或事件"><label class="sr-only" for="scan-filter">事件或研究分类</label><select id="scan-filter"><option value="all">全部结果</option><option value="buy">新买入意图 / 开仓事件</option><option value="watch">继续观察</option><option value="exit">持仓退出研究</option><option value="excluded">排除 / 不足</option><option value="sell">平仓事件</option><option value="favorites">我的关注</option></select></div></div>
+      <div class="table-wrap"><table><thead><tr><th>关注</th><th>股票</th><th>事件</th><th>分类 / 操作</th><th>行情 / 可用时间</th><th>依据 / 条件</th><th>查看</th></tr></thead><tbody id="scan-rows"><tr><td colspan="7" class="empty-cell">开始扫描后，结果显示在这里。</td></tr></tbody></table></div>
+      <div class="pagination"><span id="scan-page-label">0 条</span><button id="scan-prev" type="button" disabled>上一页</button><button id="scan-next" type="button" disabled>下一页</button></div>
+      <details id="scan-failures" hidden><summary>未成功分析的股票</summary><div class="diagnostics"></div></details>
+    </section>
+    <section id="view-backtest" class="view" aria-labelledby="backtest-title" hidden>
+      <div class="page-heading"><div><h1 id="backtest-title">策略回测</h1><p>检查规则事件如何成为模拟成交。</p></div><button id="start-backtest" form="backtest-form" type="submit" class="primary">开始回测</button></div>
+      <form id="backtest-form" class="work-form"><label class="wide">股票池<textarea id="backtest-symbols" rows="2" placeholder="填写一只或多只股票；留空使用有效股票池"></textarea></label><label>开始<input id="backtest-start" type="date" value="2026-01-01" required></label><label>结束<input id="backtest-end" type="date"></label><label>总初始资金（元）<input id="initial-cash" type="number" min="1" step="0.01" value="100000" required></label><label>计算设备<select id="backtest-device"><option value="auto">自动选择</option><option value="cpu">CPU</option></select></label></form>
+      <div class="work-form"><label>策略<select id="backtest-mode"><option value="research">缠论辅助结构＋量价＋ML研究</option><option value="structure">当前结构规则基线</option></select></label><label>入场规则<select id="backtest-entry-policy"><option value="fresh">有效买点研究</option><option value="legacy">原目标仓位对照</option><option value="risk">价格与风险实验</option></select></label><label>使用方式<select id="backtest-usage-mode"><option value="historical">历史滚动研究</option><option value="production">当前生产判断</option></select></label><label>模型选择<select id="backtest-model-policy"><option value="auto">自动按日期</option><option value="pinned">固定检查点</option></select></label><label>研究模型<select id="backtest-model" disabled><option value="">请选择固定模型</option></select></label><label>模型检查点<select id="backtest-checkpoint" disabled><option value="">自动按日期匹配</option></select></label></div>
+      <p id="backtest-checkpoint-help" class="form-note" aria-live="polite" hidden></p>
+      <p id="backtest-entry-policy-help" class="form-note entry-policy-help" aria-live="polite"></p>
+      <p id="backtest-compute-status" class="form-note" aria-live="polite">正在检查 PyTorch 和计算设备…</p><p id="backtest-compute-result" class="form-note" hidden></p><div id="backtest-research-result" class="form-note" hidden></div>
+      <p class="form-note">只做多。多股采用固定等额分仓，不在股票之间再分配资金；收盘事件在下一可交易时点执行，费用与拒单以实际结果为准。</p>
+      <div id="backtest-progress" class="inline-progress" aria-live="polite" hidden></div>
+      <div id="backtest-metrics" class="metrics-row"><span class="subtle">运行后展示净值与成交账本。</span></div>
+      <div class="result-panel"><div class="panel-heading"><h2>资金曲线</h2><div class="segmented"><button type="button" data-equity-mode="equity" aria-pressed="true">净值</button><button type="button" data-equity-mode="drawdown" aria-pressed="false">回撤</button></div></div><div id="equity-chart" class="equity-host"><div id="equity-empty" class="chart-empty"><strong>还没有回测结果</strong><span>选择股票池与时间范围，运行一条已冻结的规则。</span></div></div></div>
+      <div class="table-toolbar"><div><h2>成交账本 <span id="trade-count" class="subtle">0</span></h2><span class="subtle">点击一笔成交，在结构主图中定位。</span></div><span id="backtest-run" class="subtle"></span></div>
+      <div class="table-wrap"><table><thead><tr><th>成交日期</th><th>股票</th><th>操作</th><th class="numeric">价格</th><th class="numeric">股数</th><th class="numeric">费用</th><th>信号日期</th><th>查看</th></tr></thead><tbody id="trade-rows"><tr><td colspan="8" class="empty-cell">尚无成交记录。</td></tr></tbody></table></div>
+      <div class="pagination"><span id="trade-page-label">0 条</span><button id="trade-prev" type="button" disabled>上一页</button><button id="trade-next" type="button" disabled>下一页</button></div>
+      <details id="backtest-rejections" hidden><summary>未成交与失败明细</summary><div class="diagnostics"></div></details>
+      <details id="backtest-caveats" hidden><summary>回测口径与限制</summary><div class="diagnostics"></div></details>
+    </section>
+    <section id="view-watchlist" class="view" aria-labelledby="watchlist-title" hidden>
+      <div class="page-heading"><div><h1 id="watchlist-title">我的关注</h1><p>保存研究股票池，随时查看结构或运行同一规则。</p></div><div class="button-group"><button id="refresh-watchlist" type="button">刷新关注</button><button id="scan-watchlist" type="button">扫描关注</button><button id="backtest-watchlist" type="button">回测关注</button></div></div>
+      <form id="watchlist-form" class="toolbar personal-form"><label class="symbol-field">添加股票<input id="watchlist-symbol" list="symbol-options" placeholder="股票代码或名称" autocomplete="off" required></label><button id="add-watchlist" type="submit" class="primary">添加关注</button><span id="watchlist-state" class="subtle" aria-live="polite">正在读取关注列表…</span></form>
+      <p class="form-note">关注列表保存在本机服务，刷新页面后仍保留。价格来自最新可用本地日线，具体行情日期按每只股票显示。</p>
+      <div class="table-toolbar"><h2>关注股票 <span id="watchlist-count" class="subtle">0</span></h2><span id="watchlist-coverage" class="subtle">等待数据检查</span></div>
+      <div class="table-wrap"><table><thead><tr><th>股票</th><th class="numeric">本地收盘价（元）</th><th>行情日期</th><th>研究</th><th>关注</th></tr></thead><tbody id="watchlist-rows"><tr><td colspan="5" class="empty-cell">正在读取关注列表…</td></tr></tbody></table></div>
+      <details id="watchlist-caveats" hidden><summary>行情口径与缺失明细</summary><div class="diagnostics"></div></details>
+    </section>
+    <section id="view-holdings" class="view" aria-labelledby="holdings-title" hidden>
+      <div class="page-heading"><div><h1 id="holdings-title">我的持仓</h1><p>手动记录股数和平均成本，按本地收盘价查看持仓。</p></div><button id="refresh-holdings" type="button">刷新持仓</button></div>
+      <form id="holdings-form" class="work-form personal-form"><label class="symbol-field">股票<input id="holdings-symbol" list="symbol-options" placeholder="股票代码或名称" autocomplete="off" required></label><label>持仓股数<input id="holdings-shares" type="number" min="1" max="1000000000" step="1" inputmode="numeric" required></label><label>平均成本（元／股）<input id="holdings-cost" type="number" min="0" max="1000000000" step="any" inputmode="decimal" required></label><button id="save-holding" type="submit" class="primary">保存持仓</button><button id="cancel-holding-edit" type="button" hidden>取消编辑</button><span id="holdings-state" class="subtle" aria-live="polite">正在读取持仓…</span></form>
+      <p class="form-note">每只股票保存一条持仓；再次保存同一股票会更新股数和成本。手动记录独立于模拟回测，本页面不下单。浮动盈亏按本地收盘价计算，不包含卖出费用或已实现盈亏。</p>
+      <div id="holdings-metrics" class="metrics-row"><span class="subtle">尚无持仓估值。</span></div>
+      <div class="table-toolbar"><h2>持仓明细 <span id="holdings-count" class="subtle">0</span></h2><span id="holdings-coverage" class="subtle">等待数据检查</span></div>
+      <div class="table-wrap"><table><thead><tr><th>股票</th><th class="numeric">股数</th><th class="numeric">平均成本</th><th class="numeric">本地收盘价</th><th class="numeric">市值（元）</th><th class="numeric">浮动盈亏（元）</th><th class="numeric">收益率</th><th>操作</th></tr></thead><tbody id="holdings-rows"><tr><td colspan="8" class="empty-cell">正在读取持仓…</td></tr></tbody></table></div>
+      <details id="holdings-caveats" hidden><summary>估值口径与缺失明细</summary><div class="diagnostics"></div></details>
+    </section>
+    <section id="view-data" class="view" aria-labelledby="data-title" hidden>
+      <div class="page-heading"><div><h1 id="data-title">数据与任务</h1><p>检查输入范围，跟踪正在进行的计算。</p></div><div class="button-group"><button id="refresh-data" type="button">刷新状态</button><button id="update-data" type="submit" form="update-form" class="primary">更新行情</button></div></div>
+      <dl class="data-summary"><div><dt>行情截止</dt><dd id="data-latest">—</dd></div><div><dt>有行情股票</dt><dd id="data-stocks">—</dd></div><div><dt>行情记录</dt><dd id="data-rows">—</dd></div><div><dt>数据来源</dt><dd id="data-source">—</dd></div></dl><p id="data-detail" class="subtle">等待数据检查。</p>
+      <details class="update-options"><summary>限定更新范围（可选）</summary><form id="update-form" class="toolbar"><label class="update-symbol-field">股票池<input id="update-symbols" placeholder="如 600000.SH、000001.SZ；留空更新全市场"></label><label>截止日期<input id="update-end" type="date"></label><span class="subtle">留空使用更新流程的默认截止日。</span></form></details>
+      <div class="section-heading"><h2>计算设备</h2><button id="refresh-compute" type="button" class="quiet">刷新设备状态</button></div><div class="compute-panel"><label>检查设备<select id="data-device"><option value="auto">自动选择</option><option value="cpu">CPU</option></select></label><div><p id="data-compute-status" aria-live="polite">正在检查 PyTorch 和计算设备…</p><p id="compute-devices" class="subtle"></p><p class="subtle">GPU 用于批量信号运算；结构识别、Position 与实际成交仍在 CPU。每次任务的实际计算位置以结果为准。</p></div></div>
+      <div class="section-heading"><h2>任务</h2><button id="refresh-tasks" type="button" class="quiet">刷新任务</button></div><div id="task-list" class="task-list"><div class="empty-copy">尚无任务。</div></div>
+      <div class="section-heading"><h2>新系统运行记录</h2><button id="refresh-runs" type="button" class="quiet">刷新记录</button></div><div id="run-list" class="run-list"><div class="empty-copy">尚无运行记录。</div></div>
+    </section>
+  </main>
+  <footer class="app-footer"><span>结构可解释，结果可核验。</span><span>形成中结构会变化 · 模拟结果不代表实盘表现</span></footer>
+  <output id="notice" class="notice" aria-live="polite" hidden></output>
+</body>
+</html>

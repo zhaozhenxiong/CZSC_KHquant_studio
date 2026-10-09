@@ -1,0 +1,14 @@
+[Unit]
+Description=KHQuant Web Dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory="__REPO_ROOT__"
+Environment="PYTHONPATH=__REPO_ROOT__/app"
+ExecStart=/usr/bin/env bash "__REPO_ROOT__/khquant-native.sh" dashboard
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

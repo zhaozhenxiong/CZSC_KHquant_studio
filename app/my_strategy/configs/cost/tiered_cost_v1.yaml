@@ -1,0 +1,18 @@
+schema_id: cost-model-config-v1
+# 流动性分档冲击成本（tiered_v1）：每股/边滑点按 amount_ma20（20 日日均成交额，
+# 绝对 CNY 阈值）分档。档位表经 scripts/report_amount_ma20_distribution.py
+# 校准（2020-01-08..2026-09-03，747 万 stock-day，晋升宇宙等权均冲击 6.63bp），
+# 2026-09-04 经维护者确认后按提案冻结；修改本文件属于治理动作，必须记录变更
+# 日志并更新 ADR（见 ADR-20260903 tiered-liquidity-cost-model，D9）。
+version: tiered_v1
+commission: 0.0003
+stamp_tax: 0.0005
+slippage: 0.0005          # 仅 missing_amount_policy=flat 时作回退；flat 压力测试基准
+min_commission: 5.0
+missing_amount_policy: highest_tier
+impact_tiers:
+  - {max_amount_ma20: 20000000, impact_bp: 25}      # ≤ 2 千万：微盘/近停牌流动性
+  - {max_amount_ma20: 50000000, impact_bp: 15}      # ≤ 5 千万：小盘（晋升宇宙地板以下）
+  - {max_amount_ma20: 200000000, impact_bp: 8}      # ≤ 2 亿：中小盘
+  - {max_amount_ma20: 1000000000, impact_bp: 5}     # ≤ 10 亿：中盘（≈旧平 5bp）
+  - {max_amount_ma20: null, impact_bp: 3}           # > 10 亿：大盘高流动性

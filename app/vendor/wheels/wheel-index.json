@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "package": "czsc",
+  "version": "1.0.1",
+  "source_tree_sha256": "23cc880c2eccb8505a011fe61a95dd9a93cb3c8fb58ae09410a37f1e776958a7",
+  "wheels": [
+    {
+      "filename": "czsc-1.0.1-cp310-abi3-win_amd64.whl",
+      "sha256": "d11d87df958f2f909caf597c754efc4d718aee0623986d9e890dd95609b5f1e0",
+      "tags": [
+        "cp310-abi3-win_amd64"
+      ],
+      "build": {
+        "python": "3.12.13",
+        "system": "Windows",
+        "machine": "AMD64",
+        "wheel_tags": [
+          "cp310",
+          "abi3",
+          "win_amd64"
+        ],
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "maturin": "maturin 1.13.1",
+        "compiler": "clang version 23.1.2 (https://github.com/llvm/llvm-project.git 85ac560262434c9ccfc0c183ec22d4138ed647fb)",
+        "rustflags": "-Lnative=C:/Users/Admin/.codex/worktrees/96d4/KHQuant/.scratch/gnu-gcc-support -C dlltool=C:/Users/Admin/.codex/worktrees/96d4/KHQuant/.scratch/mingw/llvm-mingw-20260922-ucrt-x86_64/bin/llvm-dlltool.exe",
+        "release_profile_overrides": {
+          "CARGO_PROFILE_RELEASE_LTO": "false",
+          "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "16"
+        },
+        "source_tree_sha256": "23cc880c2eccb8505a011fe61a95dd9a93cb3c8fb58ae09410a37f1e776958a7",
+        "cargo_locked": true,
+        "source_algorithm_patches": false,
+        "cargo_target_dir": "C:\\Users\\Admin\\.codex\\worktrees\\96d4\\KHQuant\\app\\vendor\\czsc\\target",
+        "toolchain_archives": [
+          {
+            "name": "rustup-init.exe",
+            "url": "https://win.rustup.rs/x86_64",
+            "sha256": "6f4bef66261261fcb43131be8720bab817d403a09edec7455c371974b90bdb7e"
+          },
+          {
+            "name": "llvm-mingw-20260922-ucrt-x86_64.zip",
+            "url": "https://github.com/mstorsjo/llvm-mingw/releases/download/20260922/llvm-mingw-20260922-ucrt-x86_64.zip",
+            "sha256": "e3ad77d117a4bea19a7a3b333341824d79a5a371004a10e25b8504e7b3047666"
+          }
+        ],
+        "native_imports": [
+          "kernel32.dll",
+          "python3.dll",
+          "api-ms-win-crt-runtime-l1-1-0.dll",
+          "api-ms-win-crt-private-l1-1-0.dll",
+          "api-ms-win-crt-string-l1-1-0.dll",
+          "api-ms-win-crt-math-l1-1-0.dll",
+          "bcryptprimitives.dll",
+          "api-ms-win-core-synch-l1-2-0.dll",
+          "ntdll.dll",
+          "ws2_32.dll",
+          "userenv.dll",
+          "api-ms-win-crt-stdio-l1-1-0.dll",
+          "api-ms-win-crt-heap-l1-1-0.dll",
+          "bcrypt.dll",
+          "advapi32.dll",
+          "shell32.dll",
+          "combase.dll",
+          "crypt32.dll"
+        ],
+        "discarded_attempt": "Original fat LTO/codegen-units=1 was interrupted after more than 21 CPU minutes; source unchanged. Successful build used the recorded overrides."
+      }
+    }
+  ]
+}

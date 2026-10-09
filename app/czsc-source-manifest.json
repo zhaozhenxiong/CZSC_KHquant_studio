@@ -1,0 +1,974 @@
+{
+  "package": "czsc",
+  "version": "1.0.1",
+  "archive_sha256": "ab0e52644fe8936e0641372cb00a15e4b9d0bd93bb2c8d36402299e0d1af18c3",
+  "source": "user-provided czsc-master.zip",
+  "upstream_metadata_license": "Apache-2.0",
+  "rust_workspace_metadata_license": "MIT",
+  "patches": [],
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "f07f168fbc9cd5849514ddf8624b85cfdfc07c7a09fe64bc0a53785bd97fc3de"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "e6907e4362de6bb3c168eec5f3e68d4d2704885bf1cc7ffed476fdca0364ab1c"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "8726741d05cb52cff0ba8f8f8ceffe595a53f70b7da13b4a84e0b5b5f2aa188b"
+    },
+    {
+      "path": "README.md",
+      "sha256": "437ca8db4b2f2e775b634c2e277c0dfae7521a6e6db96d45d97d2607bad6a3dc"
+    },
+    {
+      "path": "crates/czsc-core/Cargo.toml",
+      "sha256": "5ab5f182419bc1499776fa5ed5c3b7b7dbeb0c6183d2e3822329bda2fb7b6c95"
+    },
+    {
+      "path": "crates/czsc-core/README.md",
+      "sha256": "1eb2e8e372587ebd985433b1daf2a14a2d19bd0764afa96124fe2e51a3fa4db0"
+    },
+    {
+      "path": "crates/czsc-core/benches/czsc_analyze_bench.rs",
+      "sha256": "0c79bcf989a99f4e37a0ecf8b8c0916e6d0d7088a157a8d6db752442cd2aa2a7"
+    },
+    {
+      "path": "crates/czsc-core/src/analyze/errors.rs",
+      "sha256": "7970be5839544a3c310d72efd0a9ab24720f88c0ea7444b27110c4f66183599d"
+    },
+    {
+      "path": "crates/czsc-core/src/analyze/mod.rs",
+      "sha256": "db6e9acb3e382e3a67d7aa25846c490d0ce59318450043f50f5f8988bdc73737"
+    },
+    {
+      "path": "crates/czsc-core/src/analyze/utils.rs",
+      "sha256": "37f8565355cf9ed809077bd450115ae0a809b98f0a407404c547d7e8f0104077"
+    },
+    {
+      "path": "crates/czsc-core/src/error_chain.rs",
+      "sha256": "b09f8775ab832b3ae26de74dc8f7dc4f7fffee568518221ed705d0d8db72cb5a"
+    },
+    {
+      "path": "crates/czsc-core/src/lib.rs",
+      "sha256": "8184a5e65ea312dbf893d40d090390d170cdfc7f3e77e1b70c1407ce835b3028"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/bar.rs",
+      "sha256": "5462a555bebdede6b7abdc4d1f3b8c0f879700927a808a362a90066d55e4ea77"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/bi.rs",
+      "sha256": "824fd03c8be86ae80085db84242815ac222b9d1b46ba397744dffbba3f4cb315"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/direction.rs",
+      "sha256": "590ed5221e9b5e3c7c55f3100bd4c50a8b33b80d49ed4abb5b91b0792834a809"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/errors.rs",
+      "sha256": "9da7cfb1878638324c876d3760cb2c0eb41129ce7c5b527c923f4a077ca9c339"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/event.rs",
+      "sha256": "f37814c7d6efb23b3c0941a569de59f619c1993fffd3f3ebc8f7fdce42221fc3"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/fake_bi.rs",
+      "sha256": "b763cf364c0791349ceca0cfc9f79d0c4dbbe845f64f0895f761678cb3a8e61f"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/freq.rs",
+      "sha256": "285b919ac53986b9a555ab2c42958f8062e4b511477f14532fdcbde3de93a692"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/fx.rs",
+      "sha256": "a1bd56921e6151c55aa0946d2cbe8d76ddad595ff6de56ee3e71820e119a44f4"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/mark.rs",
+      "sha256": "862ec5c1fa8e12a578a14add722a6fb3c5c387a336be017fd2bd3adc2b6d259a"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/market.rs",
+      "sha256": "5232d924a838c99e365e554afd6ee45d06c60290f35bfd7d24928ec863eff1c6"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/mod.rs",
+      "sha256": "7d658e870ba286058133edd0be5b61a0f7c8b0fbe33e52814dae9839a6eba4bc"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/operate.rs",
+      "sha256": "c3fa66d0b187b270d526a0f678cf8c8132a00b706b53a5af9453e3b151acfebd"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/position.rs",
+      "sha256": "85fbe5a124bc42dcd79defd6902527d21e0504f57849f549245469ee2a01ae68"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/signal.rs",
+      "sha256": "41765825afd21bf0e2457bda057fcf0e8804f6aecec2a796dde4091760bfc8f5"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/state.rs",
+      "sha256": "cfcfd0902ac4f83964fb54db3b69845e7e2c9706d1cf37e5026851b6e61f4dc1"
+    },
+    {
+      "path": "crates/czsc-core/src/objects/zs.rs",
+      "sha256": "cf63b3434c410c5a7bcb7243c8de4637b826d5933f29e7013f374b12ea006e98"
+    },
+    {
+      "path": "crates/czsc-core/src/python/mod.rs",
+      "sha256": "5af0f737bba621f72fd218a27c304b95bc5782627df7fdf382015ebfe26d1988"
+    },
+    {
+      "path": "crates/czsc-core/src/utils/common.rs",
+      "sha256": "a82af49fab0b85736f9797afc95a4e005aaaa84e84854f22d262f682ed62f60a"
+    },
+    {
+      "path": "crates/czsc-core/src/utils/corr.rs",
+      "sha256": "2d9e08d518f5440c957ff60ad12cfd48cbf0dcedc21a1d16960554fa1b912f2b"
+    },
+    {
+      "path": "crates/czsc-core/src/utils/errors.rs",
+      "sha256": "5a81d89a7427977845bd07bb8634f05db6b0de5ebf918fb4c8ffe8fd509fcaa1"
+    },
+    {
+      "path": "crates/czsc-core/src/utils/mod.rs",
+      "sha256": "9002371550563ac05738517674820ed8b73caed72d6fc6bb086ae07fdd3a9505"
+    },
+    {
+      "path": "crates/czsc-core/src/utils/rounded.rs",
+      "sha256": "b212005e7a9af5bf28d26a76d1f67ada4643afd33bd98796c6a95eaa6358953f"
+    },
+    {
+      "path": "crates/czsc-derive/Cargo.toml",
+      "sha256": "f33dea4cc1bbd5de6fb22905a1e2e45f644e5573ff0b11e07475b12e138bea3d"
+    },
+    {
+      "path": "crates/czsc-derive/README.md",
+      "sha256": "51afda1be100f79a3456d315e05ab8276d355edd2640b0136a11b13719ecef05"
+    },
+    {
+      "path": "crates/czsc-derive/src/err.rs",
+      "sha256": "c2ff979fd62f1df6aaf4e3eee76d1d867e26fb9f8232dc91e7b0da97aebc68bd"
+    },
+    {
+      "path": "crates/czsc-derive/src/lib.rs",
+      "sha256": "7f2760169b14ee4e339920a27349b6b7e4e7d80d152fac65f840aa3b27aba9bf"
+    },
+    {
+      "path": "crates/czsc-python/Cargo.toml",
+      "sha256": "cf7a0a42d1efa18d52ae68539c52b35f65e29f58c4829e068c076fb964f1bb38"
+    },
+    {
+      "path": "crates/czsc-python/build.rs",
+      "sha256": "7bd3cc8d2878174c3bec0d0987ff25b21aaf9ae53e92cb0902bec1bf772d6f11"
+    },
+    {
+      "path": "crates/czsc-python/src/bin/stub_gen.rs",
+      "sha256": "4a43fd7f7741daf348aebe659fcdaad90f379e6b483fc8e3b740851947c71eed"
+    },
+    {
+      "path": "crates/czsc-python/src/errors.rs",
+      "sha256": "496a25bfc453315f6a38085a91dd938a6c8f23e5185c40e867992e66b3fc145e"
+    },
+    {
+      "path": "crates/czsc-python/src/lib.rs",
+      "sha256": "c631d341026a0081740d7b528a1d38a7347abaf45decd8c5437ba1b60080e599"
+    },
+    {
+      "path": "crates/czsc-python/src/signals_dispatcher.rs",
+      "sha256": "c62a4a2f2351ad57f929ff273e02ee86fad5659baa75d608915021e5ace669e8"
+    },
+    {
+      "path": "crates/czsc-python/src/trader/api.rs",
+      "sha256": "7da15f4eb2cb1e70f939ad2f99a22bc92ff192e62654e5f2243250a312b349bf"
+    },
+    {
+      "path": "crates/czsc-python/src/trader/czsc_signals.rs",
+      "sha256": "ddc14a685e3184bc52bcdc371b1d495be59bca14c6c67889645477f46a043d5b"
+    },
+    {
+      "path": "crates/czsc-python/src/trader/czsc_trader.rs",
+      "sha256": "a64cee7ce8bf035c0f80e1f5b826b845f5093ba63ae819749f10f477f6ef55b2"
+    },
+    {
+      "path": "crates/czsc-python/src/trader/generate.rs",
+      "sha256": "acd567356244d608fbd9ebe9025cb87b06c80b6a4703b3ba872b1399ae2240f2"
+    },
+    {
+      "path": "crates/czsc-python/src/trader/mod.rs",
+      "sha256": "766ed6b697d816d99d987901cb0ebe5b46302f05a10794e73b47c8f2fda594de"
+    },
+    {
+      "path": "crates/czsc-python/src/trader/research.rs",
+      "sha256": "30aa489c4914441a07ad6a16afd13c6c85326798a38fc8011471cf0176f35e5a"
+    },
+    {
+      "path": "crates/czsc-python/src/utils/df_convert.rs",
+      "sha256": "f5f43f43f02831fc1c13cf6488b4f5225153bcdb62903dd9d3acda079adc1669"
+    },
+    {
+      "path": "crates/czsc-python/src/utils/mod.rs",
+      "sha256": "af7698bc2bbec7954a9e6e832d965466806522cb4636a3cf31a25c821c267730"
+    },
+    {
+      "path": "crates/czsc-signal-macros/Cargo.toml",
+      "sha256": "50d94a520df16fa09d713dd1fb51238bec8b103c1abb9439c73e8eb67234a771"
+    },
+    {
+      "path": "crates/czsc-signal-macros/README.md",
+      "sha256": "bfae44ed4fe746ab74d567497e1f8916f93dcf1ac6dc3129a128c445fc17fe0b"
+    },
+    {
+      "path": "crates/czsc-signal-macros/src/lib.rs",
+      "sha256": "30caeeceeebff35be58f7fbc7e24c4cab6b2339adc86910a587849b2f6c06169"
+    },
+    {
+      "path": "crates/czsc-signals/Cargo.toml",
+      "sha256": "b36bff22fa2a6f2b41530419435cd4cdb2b00f98cd0c8cc6010bd2644e2c66ad"
+    },
+    {
+      "path": "crates/czsc-signals/README.md",
+      "sha256": "b922b47726d9b980ab9e9c2943bd960622eb8145d2e61b3ccf1a687bced4f9be"
+    },
+    {
+      "path": "crates/czsc-signals/benches/signals_bench.rs",
+      "sha256": "2f00aa64f3c85aefad5ce5e2cd06301b03ce679482a64ff29998525d7e7a6474"
+    },
+    {
+      "path": "crates/czsc-signals/src/ang.rs",
+      "sha256": "5ab7d5c83f8d4ee58dee9909118ed58d9f96a104f1f53011df8764bf03f16cdf"
+    },
+    {
+      "path": "crates/czsc-signals/src/bar.rs",
+      "sha256": "a73246597e434ac7c66bebd21a09b9e32863ff7c0115442206abfc121b8c9476"
+    },
+    {
+      "path": "crates/czsc-signals/src/byi.rs",
+      "sha256": "0b2ed8d708c4b05cb4504dcb52694de155a3dbc4130c7b6f30b96f060c08ebd8"
+    },
+    {
+      "path": "crates/czsc-signals/src/cat.rs",
+      "sha256": "fdbfb7ca78c069d0394ae0b67200d4e05d969928b1744fa8983d6b3670ba9337"
+    },
+    {
+      "path": "crates/czsc-signals/src/clv.rs",
+      "sha256": "ee03eecce1a88a9c3d349d408625ac5b9a8ba8580c42271fb254626703e05c05"
+    },
+    {
+      "path": "crates/czsc-signals/src/coo.rs",
+      "sha256": "8d4b478c24d0496b6626e21fbd40f5f5c018a9c7ea419d2f75dab2b5e21a1192"
+    },
+    {
+      "path": "crates/czsc-signals/src/cvolp.rs",
+      "sha256": "7761f2168d9b8b6b4dae114647112d0710ab373314d15f1ceeba5cbdcfed4e7c"
+    },
+    {
+      "path": "crates/czsc-signals/src/cxt.rs",
+      "sha256": "a24286c2ade99694b2d0296ec2dc5872524a290a4270f1d13b079209a3bba660"
+    },
+    {
+      "path": "crates/czsc-signals/src/cxt_trader.rs",
+      "sha256": "d8ae6d9d3be52418fe3680f0657991cf264239a9034c38ffb49d8461a77b6271"
+    },
+    {
+      "path": "crates/czsc-signals/src/jcc.rs",
+      "sha256": "e3c5f40ecb0ad838da7aa14a45f8eafc00ae6fca9683f352e76ab8055fc61060"
+    },
+    {
+      "path": "crates/czsc-signals/src/kcatr.rs",
+      "sha256": "cdafd9a6f918084d7138ed78fc027bc7a8b8836de0ce1e8d26424ff5481c4f47"
+    },
+    {
+      "path": "crates/czsc-signals/src/lib.rs",
+      "sha256": "0c030e0f880cef95fb6c0a970fecd405055a60820c92141797c5d5156d9041c0"
+    },
+    {
+      "path": "crates/czsc-signals/src/ntmdk.rs",
+      "sha256": "f15005c69cb1136386c7e319e320f29e055a130ce33f47d2d34445bb33c4fe3f"
+    },
+    {
+      "path": "crates/czsc-signals/src/obv.rs",
+      "sha256": "81bedc7535f1e3fd3a4d440f76ef9765df4c4b2fcd6806c984979ab4d6dfbdf7"
+    },
+    {
+      "path": "crates/czsc-signals/src/params.rs",
+      "sha256": "fe1d0c2169032ba65027406d01796d3d18add3c8eb14953a69c8cfa27ce69efc"
+    },
+    {
+      "path": "crates/czsc-signals/src/pos.rs",
+      "sha256": "5c1793b98a57a7169a02040ec58c091b890445abf9ade57262fb9dce319d0389"
+    },
+    {
+      "path": "crates/czsc-signals/src/pressure.rs",
+      "sha256": "7f73c0f500724b61838cf29c03f8f384f5e5d3fcd97129ee02c619e8904a098f"
+    },
+    {
+      "path": "crates/czsc-signals/src/registry.rs",
+      "sha256": "cb301b9dc9b41ef75b909e242d8efb8ee13c6c236edc086f19c7d89917e27a91"
+    },
+    {
+      "path": "crates/czsc-signals/src/tas.rs",
+      "sha256": "75d327fa85ee89aa20916f5299e81f97791397708f68cabcf33b0d1d59762fde"
+    },
+    {
+      "path": "crates/czsc-signals/src/types.rs",
+      "sha256": "770478b98523cd69e8bcf51c044f80d46b43ea68c9399203d5c793d44c75ed41"
+    },
+    {
+      "path": "crates/czsc-signals/src/utils/cxt.rs",
+      "sha256": "679f25b565374b5419f5384e91d16cc2a82eb3244cb47314dcd4502feba1bc3f"
+    },
+    {
+      "path": "crates/czsc-signals/src/utils/math.rs",
+      "sha256": "c8cfeff8c41ab4aaccbffcc6ceedafb3f57fe4b89c540da999f257da3019d50b"
+    },
+    {
+      "path": "crates/czsc-signals/src/utils/mod.rs",
+      "sha256": "b80e7e16c41a14130ca4164ca6bbbad48800036e1499a076f27fe26fb6812e02"
+    },
+    {
+      "path": "crates/czsc-signals/src/utils/sig.rs",
+      "sha256": "05c91aca8df5c715ac05cbd926ff1df576da23560f8d282de5ad9581720c00b9"
+    },
+    {
+      "path": "crates/czsc-signals/src/utils/ta.rs",
+      "sha256": "97c9cee8d7223933da26c679e4cb034ecd598843194c35095b39a9584c26865d"
+    },
+    {
+      "path": "crates/czsc-signals/src/utils/zdy.rs",
+      "sha256": "3f44a3b48346548d56dd08bbfcea16e879e246a97dd3a62137346903fa532147"
+    },
+    {
+      "path": "crates/czsc-signals/src/vol.rs",
+      "sha256": "ed96a1a64b9f58098d5b1966d323fde00dc8e3c63ef60aae0f51cc8c9d04c5f9"
+    },
+    {
+      "path": "crates/czsc-signals/src/xl.rs",
+      "sha256": "260a5ab5405b40979efb64972295ecaed58b523085938ce13a00a612298742b7"
+    },
+    {
+      "path": "crates/czsc-signals/src/zdy.rs",
+      "sha256": "759742846b16b615ef29e031d1011c09cb55da0ef88e2639f917035764efea31"
+    },
+    {
+      "path": "crates/czsc-signals/src/zdy_trader.rs",
+      "sha256": "f63c9fbe63f50680b2d874faa73d0e07f2c04de86da0e229515928a43c827e2d"
+    },
+    {
+      "path": "crates/czsc-ta/Cargo.toml",
+      "sha256": "9db099b32dca8096ece7cb4e63d2fd7b98b45a8de4fca21723e743029979a8e0"
+    },
+    {
+      "path": "crates/czsc-ta/README.md",
+      "sha256": "e4ab9eef4be6bf72424b8dfebc10ab2039e83ed5cbbf93f34b5b195a41b99c0b"
+    },
+    {
+      "path": "crates/czsc-ta/src/lib.rs",
+      "sha256": "c8197d251a6b50ace0555aa584438f53ef3215c57d9a6d3cc413d4755a447d01"
+    },
+    {
+      "path": "crates/czsc-ta/src/mixed/chip_dist.rs",
+      "sha256": "9c21492bbe9bd10a4840d020a004f42694ff4ce55dbead5b912c7e998de8721e"
+    },
+    {
+      "path": "crates/czsc-ta/src/mixed/mod.rs",
+      "sha256": "65591aab008ada37324833e086b23c32ad9511bf7761df39004d0c8414589393"
+    },
+    {
+      "path": "crates/czsc-ta/src/pure.rs",
+      "sha256": "06178ce3717d3958b02215b5c62eb05524646758cbd2ff9c98dc0a2182fb72d3"
+    },
+    {
+      "path": "crates/czsc-ta/src/python.rs",
+      "sha256": "ac16f127c298093b6526a8eed9e179d967f807db87541d743eff5f265d6251df"
+    },
+    {
+      "path": "crates/czsc-trader/Cargo.toml",
+      "sha256": "c3f441c222f32ca232f5423f68183aa402732ab21bbe2b2712b0831f680983e9"
+    },
+    {
+      "path": "crates/czsc-trader/README.md",
+      "sha256": "21a816359d2e6c043b93abbdc38600bda2c2700d5ca0f17e99b5448dc7717064"
+    },
+    {
+      "path": "crates/czsc-trader/src/czsc_signals.rs",
+      "sha256": "b16ff1025f5914bbf05fc6e755983be165418f9819f529000b8343a382fa26eb"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/catalog/mod.rs",
+      "sha256": "953c1e5539b767e64b88b1c3c5ed1a64d1a1251074ffa63393b824e0999829c9"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/compiler/event.rs",
+      "sha256": "179572f3fecccb29c43f098438ae4c07c0ecaf1e69e82526bd9a0b91d9e89fa1"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/compiler/mod.rs",
+      "sha256": "f79b3811c1e1acc5c77008f7ff04b2ae8c74ce212defa733b6d58cfd24d66117"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/compiler/optimize.rs",
+      "sha256": "777792cd049cce71aec7dc9dc4f9c3b71f96e2ab8c0d27328638cb5b3efadde8"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/compiler/position.rs",
+      "sha256": "b560560a58fb6290c7a02051f46af1fb6be9046d61d3f4370457f8d39e199717"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/compiler/signal.rs",
+      "sha256": "97489da1d4efd763cab34d0cc6fffa6dee04d0901c22822a1418fc893e38221d"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/mod.rs",
+      "sha256": "ba9a9d1a12a00c5980619b4f00f126c5ee69ab80ac1ce120b17d310b3f86c8c8"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/runtime/executor.rs",
+      "sha256": "67e55ce6c7702d4226c22cb339caa0fc298a8b89b17aca18dfa50ea468ee7861"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/runtime/mod.rs",
+      "sha256": "337023a65e08bd1f382bd169eaf60b64d972d65c0488e6e32dcae38cf17e950d"
+    },
+    {
+      "path": "crates/czsc-trader/src/engine_v2/scheduler.rs",
+      "sha256": "fd9a8b700fe9316fe866a6f6ea9862ba82f4fc8a47eecd785b54bee9cd50c0a1"
+    },
+    {
+      "path": "crates/czsc-trader/src/lib.rs",
+      "sha256": "77742cd10902b14d5a595a1e99663320f5a669eaa63882e495a04ef391ccd601"
+    },
+    {
+      "path": "crates/czsc-trader/src/optimize.rs",
+      "sha256": "db0537a635c663f51dff65ddbfba67d0f6721862d2860547fde6a7dedba1fdb8"
+    },
+    {
+      "path": "crates/czsc-trader/src/sig_parse.rs",
+      "sha256": "0e63efc6fde7306dc647a1e7bedc9b3f264d86d7631a61c443759cb1b39c5ac9"
+    },
+    {
+      "path": "crates/czsc-trader/src/strategy.rs",
+      "sha256": "b2075b5d17aedb8037bc103aec6022b18ae8803377a1269ea251131e32040f6b"
+    },
+    {
+      "path": "crates/czsc-trader/src/trader.rs",
+      "sha256": "fefec9a4927831772143724c379aa481e7b4ccac5e6d00761323b46936c69145"
+    },
+    {
+      "path": "crates/czsc-utils/Cargo.toml",
+      "sha256": "d53346cfc7d7f26b03b3608d1859deb8f7fc47f7d79d2b44dc7605b0d29c2a70"
+    },
+    {
+      "path": "crates/czsc-utils/README.md",
+      "sha256": "c73e2e6ef4bd139865192eaf3803b2602bc72aa1450b68908506abd07043123b"
+    },
+    {
+      "path": "crates/czsc-utils/data/minutes_split.feather",
+      "sha256": "97a54ed25fa9900a45b6fd56baccca08f382eb8e87fe3f4b41310a6eede6c5fd"
+    },
+    {
+      "path": "crates/czsc-utils/src/bar_generator.rs",
+      "sha256": "5cb4ba9cb7168b689eb6cf96f413c8619d65652bcb6436027be23e0af044e8b3"
+    },
+    {
+      "path": "crates/czsc-utils/src/errors.rs",
+      "sha256": "8433e503d6296bc8eb7225eda65af11bdee94a95d1b75fdb5876e363f480d6d5"
+    },
+    {
+      "path": "crates/czsc-utils/src/freq_data.rs",
+      "sha256": "745219a909a4da8ace048256562f59f58c61201cd090374697c6c05846960942"
+    },
+    {
+      "path": "crates/czsc-utils/src/lib.rs",
+      "sha256": "ea35cf9321d4e9e87c6330efdc318618994b96558b51c8c7c21c46ac0a39fe26"
+    },
+    {
+      "path": "crates/czsc-utils/src/monotonicity.rs",
+      "sha256": "5daba3ad676ffe8b84a7521ce8d181254f7fd2fb4951aca7ac1dbc96d2143be6"
+    },
+    {
+      "path": "crates/czsc-utils/src/python/mod.rs",
+      "sha256": "3289e5c270cb44ad1e1bd2045e6f6959ca445fca13768165dc606658f2a22cd6"
+    },
+    {
+      "path": "crates/czsc-utils/src/resample.rs",
+      "sha256": "8c4da4393a754630e3a8d72288dc5b807d8939debba9599535faa4e214bd185c"
+    },
+    {
+      "path": "crates/czsc-utils/src/trading_time.rs",
+      "sha256": "7d5ae117e75f026afe2163780cfc9bd84eefe6a239e974f248bfd68be5e82161"
+    },
+    {
+      "path": "crates/czsc/Cargo.toml",
+      "sha256": "fea602465a5b15f52e42bb4f32e1203a47105817998ee25f4c3afabc5b560ac2"
+    },
+    {
+      "path": "crates/czsc/README.md",
+      "sha256": "baf9efd28e807af1c906e42685d99436d36f68547bcfb76ab9735a8161729d52"
+    },
+    {
+      "path": "crates/czsc/src/lib.rs",
+      "sha256": "36f2893908b2c2dd4a80544483bf1e9273b2685d4240f6109efeef13a3294155"
+    },
+    {
+      "path": "czsc/__init__.py",
+      "sha256": "61f57fd91286fd7bbb1b9a81d9c745e2c5614580283d49c50c2d3e54e194b847"
+    },
+    {
+      "path": "czsc/_format_standard_kline.py",
+      "sha256": "f0487cac38e7615c7d0075b349eaf8e2ea7ff5144319511a0c5ce66c47b1b0b3"
+    },
+    {
+      "path": "czsc/_native/__init__.pyi",
+      "sha256": "5720fabf73608767a3698b38bd4e527d3bec86964f20ec7ae4c6508a9bb7003b"
+    },
+    {
+      "path": "czsc/_resample_bars.py",
+      "sha256": "b3dacce2eedbd347e9c7f205df697e5f3aa6bfef6bd94d2cbfb29b911e12239a"
+    },
+    {
+      "path": "czsc/_runtime_adapters.py",
+      "sha256": "5776f51e194ada6be2c35863821ec8aa8edb932a3ddd56360a3481b07009c8ca"
+    },
+    {
+      "path": "czsc/_utils/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "czsc/_utils/_df_convert.py",
+      "sha256": "bd7b20a06c10299664bb04bda75b6c07df347eb22ccbeaa26dfec83c89ef460c"
+    },
+    {
+      "path": "czsc/aphorism.py",
+      "sha256": "dcde8b4ba101c8632c87390856198f1752b1cdc00736c9f008ee32797ed9c57c"
+    },
+    {
+      "path": "czsc/aphorism.pyi",
+      "sha256": "7da919453e20b1ad3f7a8eda37b40569fced1622dc77b77503bdd764a19c9190"
+    },
+    {
+      "path": "czsc/cli/__init__.py",
+      "sha256": "89fc22d1c76f01dcefff4231206033a5df4af55844ad861806b67ffeeed9695a"
+    },
+    {
+      "path": "czsc/cli/_io.py",
+      "sha256": "2f51b286723cc15914900b91a1d2fff9f36fa1b8f65cc770621d8a9dfa6d8a59"
+    },
+    {
+      "path": "czsc/cli/analyze.py",
+      "sha256": "3ab9bc0a41615f3ac457184b9d8f82d636508bb9b323e843c071a4d51e888a8b"
+    },
+    {
+      "path": "czsc/cli/backtest.py",
+      "sha256": "3615b4e191f9d2f30b1ec30dd12cfad80ee844b2e3863660306a0e5414297ee9"
+    },
+    {
+      "path": "czsc/cli/bench.py",
+      "sha256": "e55f9290e1c59880f90e8402c17df2d2d2d1e8c333df3ae99109a3185d831815"
+    },
+    {
+      "path": "czsc/cli/data.py",
+      "sha256": "c472075b1b964f057c57ac29a7d3062fe488e71b8d75b4231d01807cbcd9464a"
+    },
+    {
+      "path": "czsc/cli/plot.py",
+      "sha256": "45303a15e590c988654425dbfee1c9f441550155b45de0b22015a5526e106dba"
+    },
+    {
+      "path": "czsc/cli/research.py",
+      "sha256": "3dc8cd340b952928a81c91bdaf2af7a8bc39b9bd676bdca2c049e39b727170ff"
+    },
+    {
+      "path": "czsc/cli/schema.py",
+      "sha256": "d7c48858151e680c3f79bff044c2fb393f6f0bc4e5ae0a294b853f2cbbec569b"
+    },
+    {
+      "path": "czsc/cli/signals.py",
+      "sha256": "6ffc56cd2673cffaf30bcb0f5477619ebfcf2a0079207d25b94e76dc75047430"
+    },
+    {
+      "path": "czsc/connectors/__init__.py",
+      "sha256": "493b9a8739293251e07cccc60e11c214eb2a9f5f49f7bbb935c5cad5307e4ade"
+    },
+    {
+      "path": "czsc/connectors/__init__.pyi",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "czsc/connectors/ccxt_connector.py",
+      "sha256": "029c7f9fc5b83911d2533c01bf4066b70b6dc7b9e058a5d8b4dd08111dde2ce2"
+    },
+    {
+      "path": "czsc/connectors/ccxt_connector.pyi",
+      "sha256": "4898b581a586411fff67d2d64154735901402e815ab28b08007ecc3f2b5efa30"
+    },
+    {
+      "path": "czsc/connectors/local_data.py",
+      "sha256": "8ed33a08e4997611f3e74eec122ad7cc47fd2d059aadccdb2eee9aa9850af530"
+    },
+    {
+      "path": "czsc/connectors/local_data.pyi",
+      "sha256": "59190e32ff340d300dca9a6eb90666caf45afba48cea693ca918f347b30a8cd8"
+    },
+    {
+      "path": "czsc/connectors/tq_connector.py",
+      "sha256": "3881212c980152db0df473fe0f1e18e0066c35b7c65c21269701758174a394e3"
+    },
+    {
+      "path": "czsc/connectors/tq_connector.pyi",
+      "sha256": "2750a3e1bab648fd105e55d0efa4f23569e9eed00a6599eac745c43ac74b18ca"
+    },
+    {
+      "path": "czsc/connectors/ts_connector.py",
+      "sha256": "edd02405b14cfedfd602c75ede45cf87b1192affb9707cef546ae68573d48855"
+    },
+    {
+      "path": "czsc/connectors/ts_connector.pyi",
+      "sha256": "8afa42b5aac2e1b34c1313360b4e13a779ff9227e872b5bedca83313d1406541"
+    },
+    {
+      "path": "czsc/eda.py",
+      "sha256": "abc02513abf46d43f1e1ab88fc69dfa5e24ffc332ce030cc2711cc10a95dd067"
+    },
+    {
+      "path": "czsc/eda.pyi",
+      "sha256": "c6e32cc9911f9e3919a4ba9012dd21327c5865ba982761f16ed40ec37b52e9a8"
+    },
+    {
+      "path": "czsc/envs.py",
+      "sha256": "81dfa59a69eda6ae58aa9b89b3c54e037868b4ed6b00cf81db40328ca4208636"
+    },
+    {
+      "path": "czsc/envs.pyi",
+      "sha256": "c77121aefc04e1cffd8cf716fcbb53037de459bbf3fd8359959e00df8f06d28f"
+    },
+    {
+      "path": "czsc/fsa/__init__.py",
+      "sha256": "69bed2f17f95d18efc2f20e6ff0d0ac11c9d2e051144b7e5398d32e7284136de"
+    },
+    {
+      "path": "czsc/fsa/__init__.pyi",
+      "sha256": "832240e24973b96724005aa800fe00fcc23ce4829cdc4d7ab5cb7298605f3efa"
+    },
+    {
+      "path": "czsc/fsa/base.py",
+      "sha256": "9374024836c8a88bc01a4878c20027f47f90d8a7526b40b59975a05e381b4ca4"
+    },
+    {
+      "path": "czsc/fsa/base.pyi",
+      "sha256": "5f09294dadb306735ebd23739e6aaa8476a2d6a7165a971c290eb5caa2af2165"
+    },
+    {
+      "path": "czsc/fsa/bi_table.py",
+      "sha256": "55d8d17645c6a6267e8d840d2803d6244fb7dbe7fdbff2a1021caca64be5f115"
+    },
+    {
+      "path": "czsc/fsa/bi_table.pyi",
+      "sha256": "88ca5a429c6ab36442ac959bcdc6bd968b321033c1a7e8e8c7788bcaf9d4c73c"
+    },
+    {
+      "path": "czsc/fsa/im.py",
+      "sha256": "bd07cb646b845b6c5a6d27d6b517646a28619fc8900256f4227567db048dc6c2"
+    },
+    {
+      "path": "czsc/fsa/im.pyi",
+      "sha256": "b14e28391ddbfce00d611c0ed1e2d8a2ff7ba2bdbef44cd5692647f54eca9797"
+    },
+    {
+      "path": "czsc/fsa/push_strategy_latest.py",
+      "sha256": "420ec0f90e082719583d95d497124c94d57d953efa96f78f68bf013003f256f5"
+    },
+    {
+      "path": "czsc/fsa/push_strategy_latest.pyi",
+      "sha256": "c98b5d58050acbbe1ef42177a5319b69d4d0505fa8a5f494cd4d8e8082e4bb92"
+    },
+    {
+      "path": "czsc/fsa/spreed_sheets.py",
+      "sha256": "2eb2cd24f4d16b6e5c0ff1210a9a97a01faf78a722740aab32643892c37553d6"
+    },
+    {
+      "path": "czsc/fsa/spreed_sheets.pyi",
+      "sha256": "c80a5a85f350b3359fda1ada7b5dde70ffab466c103441dca8580b86e60c4f2b"
+    },
+    {
+      "path": "czsc/mock.py",
+      "sha256": "f03e2f1cf0c29b516938780776dc7dbf7760581fab560a18807955ba7da2d5c1"
+    },
+    {
+      "path": "czsc/mock.pyi",
+      "sha256": "5bbe0eda408a5543c2979f8871f1d19daf4c478edb53cb96018f3b2e2c595621"
+    },
+    {
+      "path": "czsc/models.py",
+      "sha256": "90d277fa558ad7dea1e574881a3dcf4bfb65bb42886559972a792b617d96eddb"
+    },
+    {
+      "path": "czsc/py.typed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "czsc/research.py",
+      "sha256": "b61d2ce277b0f03e4ebf0c1fd9c178063ec5154eba6be799b3e62bbcae911755"
+    },
+    {
+      "path": "czsc/strategies.py",
+      "sha256": "b658e75857860fd3efea9da812af8a5da8d948e04927b9cbc434961637a8d3f5"
+    },
+    {
+      "path": "czsc/traders/__init__.py",
+      "sha256": "b1fba22d0165e6b71ff7a591bb6e81b0c92dd240409099ff3114fab280db8ad9"
+    },
+    {
+      "path": "czsc/traders/__init__.pyi",
+      "sha256": "5ecd2d527b4c666360c0a7068dfe505b80ded22a1fa70ec24de8e3e4be3a34ef"
+    },
+    {
+      "path": "czsc/utils/__init__.py",
+      "sha256": "136f7858ceca5bdefab2699e628fecbdd1f79e7ff05325cc90499f2d682ed7fd"
+    },
+    {
+      "path": "czsc/utils/__init__.pyi",
+      "sha256": "f12d3ae12e6971700828f6bf5d384a16a11f4827cab74147538c49b9513c5574"
+    },
+    {
+      "path": "czsc/utils/analysis/__init__.py",
+      "sha256": "3c028e63e5646f6483e080f03873946eb8f195f7cd80d1bd3f3969f456d9567f"
+    },
+    {
+      "path": "czsc/utils/analysis/__init__.pyi",
+      "sha256": "6486cbe6bb77c4b0a7bb1aaeb03034b912969b90b62e971078e9b4ef8edec9de"
+    },
+    {
+      "path": "czsc/utils/analysis/corr.py",
+      "sha256": "fb03f5b447877e6d4182cdfb43abc6aca9740697393395c3de284e288da8407c"
+    },
+    {
+      "path": "czsc/utils/analysis/corr.pyi",
+      "sha256": "0f00c79a5a36d1f4a5fc5349d2c28db6e71a7ab31acb399e74d758a03b5167dc"
+    },
+    {
+      "path": "czsc/utils/data/__init__.py",
+      "sha256": "689b3c59578e999df1ed0feb39678038cadd608b9f9be295a082c5f0746dd2f6"
+    },
+    {
+      "path": "czsc/utils/data/__init__.pyi",
+      "sha256": "e1bf4a2ab75450fd2e6d7c2a42732c76fdc726024fc778e8f5b4b8a3e55c49f0"
+    },
+    {
+      "path": "czsc/utils/data/cache.py",
+      "sha256": "99a958543f5745911ad152a130c21e224da1e20f29dc16b60e999934ead7f65a"
+    },
+    {
+      "path": "czsc/utils/data/cache.pyi",
+      "sha256": "38cde1d549de548e45d38cfaf2a10f2aaa697ceb81cb3cdf4473bfe5914018e5"
+    },
+    {
+      "path": "czsc/utils/data/client.py",
+      "sha256": "263ac80928b5c8b044867d1b2781f0c67953329891aea6f58dbbdb941e681579"
+    },
+    {
+      "path": "czsc/utils/data/client.pyi",
+      "sha256": "fd37b5440e39bcf4b8416b6a309d98b8f6f9284d171d7fabf9f29390582231b0"
+    },
+    {
+      "path": "czsc/utils/data/converters.py",
+      "sha256": "828fd394633adfa5f851853cb8f469ce248a10c94822ccd4265ea39026c6e1f7"
+    },
+    {
+      "path": "czsc/utils/data/converters.pyi",
+      "sha256": "1f1f414e88d8cfeaf18761aeaa9e69d28bfb0b3fdf25518d3220b98246046215"
+    },
+    {
+      "path": "czsc/utils/data/validators.py",
+      "sha256": "133f1df597e51ade50a2077f9aed588c6a1bc6f0f559afa5961a152f80ec565d"
+    },
+    {
+      "path": "czsc/utils/data/validators.pyi",
+      "sha256": "e645d86b9a911b6b693de960ffd010c19e8af1eb0deb7a3cff1abce6b01bbd84"
+    },
+    {
+      "path": "czsc/utils/holds_concepts.py",
+      "sha256": "f771fdee9e6db0a034e70c1a5ed03bdea9cfedcf6141db7779c98f2c7a34b3e9"
+    },
+    {
+      "path": "czsc/utils/index_composition.py",
+      "sha256": "10e324acaa59d0248db06573de984d8e48df286fbd26f14bf569340dc02d19ae"
+    },
+    {
+      "path": "czsc/utils/index_composition.pyi",
+      "sha256": "b40b8e892e69d8b2760cddb42dac5e4ae2b8b37e158f5e52878c1f0b41bf74f4"
+    },
+    {
+      "path": "czsc/utils/io.py",
+      "sha256": "42a756b2129a528beefe2682bdd9ee57bc086d4c8a01ebe734ac03caf1379fd1"
+    },
+    {
+      "path": "czsc/utils/io.pyi",
+      "sha256": "679ccaf5680d589d9ea88cdd207cb71d2d4a2f5c95080e85fcbdda778e629504"
+    },
+    {
+      "path": "czsc/utils/kline_quality.py",
+      "sha256": "6dae817409313f2df6f04306d1a77fa8ee1a5f7b751451ea70ba07d8bbc68200"
+    },
+    {
+      "path": "czsc/utils/kline_quality.pyi",
+      "sha256": "34cd3b6172dafffd5df8b715690f3a5ed9ec0fe68d693a84054363c3d779bf3d"
+    },
+    {
+      "path": "czsc/utils/log.py",
+      "sha256": "d479cdd205abf590534c2a216b16c03dfe823c77a3e50c453b951398f3266174"
+    },
+    {
+      "path": "czsc/utils/log.pyi",
+      "sha256": "bf2550b27df4884d693c9a0062ac7775213186195ad999c4da48a6fbcec91d7a"
+    },
+    {
+      "path": "czsc/utils/mark_cta_periods.py",
+      "sha256": "d1f9ec1a32d7b2e13941e9a44eb5e616affde602458c9e66bf1b37aedb704e80"
+    },
+    {
+      "path": "czsc/utils/mark_cta_periods.pyi",
+      "sha256": "186ec698ce01135ebeb38aae0a5b095c173c94c9771b7a0b842fa2c15e94a24f"
+    },
+    {
+      "path": "czsc/utils/mark_volatility.py",
+      "sha256": "fa62787682939e8aca0669cc5228199003112f674d4474292e3f178ffb5a6d57"
+    },
+    {
+      "path": "czsc/utils/mark_volatility.pyi",
+      "sha256": "a4ffc051fadc6aa07a8e3028d9be413088ee802e2d59f2dcf272761c3994a07a"
+    },
+    {
+      "path": "czsc/utils/optimize.py",
+      "sha256": "49145987a45c44fccc04e8b12f4157b5848bc789a47967ca9572cba71c27c0e2"
+    },
+    {
+      "path": "czsc/utils/plotting/__init__.py",
+      "sha256": "8b11c5523a480f873f655a90181ff7a01d9f361bcae10c1d3528c71e2e6e75ee"
+    },
+    {
+      "path": "czsc/utils/plotting/__init__.pyi",
+      "sha256": "8eea9df4f6d7b38ca0e39ccc27b04700e3d08dbeec8046d613d22706d19985fa"
+    },
+    {
+      "path": "czsc/utils/plotting/_macd.py",
+      "sha256": "86b4e99244d87669b6dda81e3579453d3fb96fbf24f18a0dd1389239b4bae347"
+    },
+    {
+      "path": "czsc/utils/plotting/lightweight/__init__.py",
+      "sha256": "0eeb465eb9d9278c543275ace710b9a304aad3bfade0978ea6aa1d79ef6056d9"
+    },
+    {
+      "path": "czsc/utils/plotting/lightweight/_data.py",
+      "sha256": "eddff2a89f3582ae61802e47c472bde6da39cf2d8b91676e9a8011cea4f4a5f6"
+    },
+    {
+      "path": "czsc/utils/plotting/lightweight/_html_renderer.py",
+      "sha256": "3242f88c3815d38e36d6f1e9c8e510a9298fee06a07dc69f27cb11a33cd97029"
+    },
+    {
+      "path": "czsc/utils/plotting/lightweight/_signals.py",
+      "sha256": "e212bd53a09678401902ddad7d2bf3938765b592ddb0fea75486ae0ba95b3256"
+    },
+    {
+      "path": "czsc/utils/plotting/lightweight/_theme.py",
+      "sha256": "687dc4cc85aa1dbd9b712b23072e8f0f25024493d1dcc1701eb6da5f8e21f8ac"
+    },
+    {
+      "path": "czsc/utils/trade.py",
+      "sha256": "eeb8b3bde9f2877607b7071555fc82bcce74a836f0de3fafc2ea4b552abe9951"
+    },
+    {
+      "path": "czsc/utils/trade.pyi",
+      "sha256": "9e94cc3db192b7f970b41001d8ad896315423d5fe5eb48daf1f0bbb7c724fbb5"
+    },
+    {
+      "path": "czsc/utils/warning_capture.py",
+      "sha256": "5340ca15252cff68b11c0212859b9fac33be3a033ffd1dd5281d6e3265e03323"
+    },
+    {
+      "path": "czsc/utils/warning_capture.pyi",
+      "sha256": "b00f9729d6689c8e851777772a2d53dcf35bcfddc719ad86943724221216ed40"
+    },
+    {
+      "path": "czsc/utils/weights_convert.py",
+      "sha256": "5690c39ae74ed40320e96cc0450116ace0a1b28c06bd40e52066c86ec7e4b728"
+    },
+    {
+      "path": "czsc/utils/weights_convert.pyi",
+      "sha256": "13b7ee79af865efce47dc63f5c2b46853e0f2a0a22e75ca7ac309531f0149da0"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "743994e92194f53bb8da1bd03cfda3e7ecb6408beae249315e3c39ad2635f024"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "sha256": "e0eeaad88b35bdeee8af9771ba21f5e5636310566e8e08ccc0d7c9e20c14e0ca"
+    }
+  ],
+  "built_wheel_sha256": "d11d87df958f2f909caf597c754efc4d718aee0623986d9e890dd95609b5f1e0",
+  "built_wheel_name": "czsc-1.0.1-cp310-abi3-win_amd64.whl",
+  "build_python": "3.12.13",
+  "build": {
+    "python": "3.12.13",
+    "system": "Windows",
+    "machine": "AMD64",
+    "wheel_tags": [
+      "cp310",
+      "abi3",
+      "win_amd64"
+    ],
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+    "maturin": "maturin 1.13.1",
+    "compiler": "clang version 23.1.2 (https://github.com/llvm/llvm-project.git 85ac560262434c9ccfc0c183ec22d4138ed647fb)",
+    "rustflags": "-Lnative=C:/Users/Admin/.codex/worktrees/96d4/KHQuant/.scratch/gnu-gcc-support -C dlltool=C:/Users/Admin/.codex/worktrees/96d4/KHQuant/.scratch/mingw/llvm-mingw-20260922-ucrt-x86_64/bin/llvm-dlltool.exe",
+    "release_profile_overrides": {
+      "CARGO_PROFILE_RELEASE_LTO": "false",
+      "CARGO_PROFILE_RELEASE_CODEGEN_UNITS": "16"
+    },
+    "source_tree_sha256": "23cc880c2eccb8505a011fe61a95dd9a93cb3c8fb58ae09410a37f1e776958a7",
+    "cargo_locked": true,
+    "source_algorithm_patches": false,
+    "cargo_target_dir": "C:\\Users\\Admin\\.codex\\worktrees\\96d4\\KHQuant\\app\\vendor\\czsc\\target",
+    "toolchain_archives": [
+      {
+        "name": "rustup-init.exe",
+        "url": "https://win.rustup.rs/x86_64",
+        "sha256": "6f4bef66261261fcb43131be8720bab817d403a09edec7455c371974b90bdb7e"
+      },
+      {
+        "name": "llvm-mingw-20260922-ucrt-x86_64.zip",
+        "url": "https://github.com/mstorsjo/llvm-mingw/releases/download/20260922/llvm-mingw-20260922-ucrt-x86_64.zip",
+        "sha256": "e3ad77d117a4bea19a7a3b333341824d79a5a371004a10e25b8504e7b3047666"
+      }
+    ],
+    "native_imports": [
+      "kernel32.dll",
+      "python3.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "bcryptprimitives.dll",
+      "api-ms-win-core-synch-l1-2-0.dll",
+      "ntdll.dll",
+      "ws2_32.dll",
+      "userenv.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "bcrypt.dll",
+      "advapi32.dll",
+      "shell32.dll",
+      "combase.dll",
+      "crypt32.dll"
+    ],
+    "discarded_attempt": "Original fat LTO/codegen-units=1 was interrupted after more than 21 CPU minutes; source unchanged. Successful build used the recorded overrides."
+  }
+}

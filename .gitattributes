@@ -1,0 +1,33 @@
+*.sh text eol=lf
+*.command text eol=lf
+services/linux/*.service text eol=lf
+services/linux/*.timer text eol=lf
+services/macos/*.plist text eol=lf
+
+# Frozen attachment files must retain the bytes recorded in the source manifest.
+app/vendor/czsc/** -text -whitespace
+app/my_strategy/web_dashboard/static/vendor/** -text -whitespace
+app/vendor/wheels/*.whl binary
+
+# Preserve existing audit records through Windows checkout without restyling them.
+app/AI_CHANGELOG.md -text -whitespace
+app/my_strategy/knowledge_base/** -text -whitespace
+app/my_strategy/knowledge_base_system/** -text -whitespace
+
+# Preserve exact bytes used by frozen strategy and model lineage SHA checks.
+app/my_strategy/cli.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/core/paths.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/core/storage_layout.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/execution/broker.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/execution/cost_model.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/execution/ledger.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/execution/order.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/storage/access_layer.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/storage/db_paths.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/storage/raw_repository.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Preserve current z1 source identities after retirement.
+app/my_strategy/web_dashboard/app.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/data_manager/external_market.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/storage/warehouse_schema.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+app/my_strategy/validation/__init__.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

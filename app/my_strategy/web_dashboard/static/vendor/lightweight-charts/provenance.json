@@ -1,0 +1,8 @@
+{
+  "name": "lightweight-charts",
+  "version": "4.1.3",
+  "source": "git+https://github.com/tradingview/lightweight-charts.git",
+  "tarball": "https://registry.npmjs.org/lightweight-charts/-/lightweight-charts-4.1.3.tgz",
+  "integrity": "sha512-SJacmEyx3LmT2Qsc7Kq7cEX7nEHtQv0MOlujhRlcDxhW62pG6nkBlcM52/jNqkq8B28KQeVmgOQ7zrdJ4BCPDw==",
+  "asset_sha256": "0c146b9bfbc6e5f19da1a0de876dae43023c332d5157d82f7575f9b7653ee519"
+}

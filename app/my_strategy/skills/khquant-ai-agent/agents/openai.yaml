@@ -1,0 +1,4 @@
+interface:
+  display_name: "KHQuant CZSC Agent"
+  short_description: "Operate and verify CZSC raw data, chronological structures, BrokerSimulator, six-view dashboard and audit."
+  default_prompt: "Use $khquant-ai-agent to inspect the current CZSC checkout and complete the requested workflow with real inputs, next-session ledger evidence and exact retirement records."

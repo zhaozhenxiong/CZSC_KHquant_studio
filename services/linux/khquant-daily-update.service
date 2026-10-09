@@ -1,0 +1,8 @@
+[Unit]
+Description=KHQuant Daily Data Update
+
+[Service]
+Type=oneshot
+WorkingDirectory="__REPO_ROOT__"
+Environment="PYTHONPATH=__REPO_ROOT__/app"
+ExecStart=/usr/bin/env bash "__REPO_ROOT__/khquant-native.sh" update-data --mode local

@@ -1,0 +1,80 @@
+name: Assemble portable release
+on:
+  workflow_dispatch:
+    inputs:
+      verify_mps:
+        description: Run the Apple Silicon hardware gate on a configured self-hosted Mac
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: .venv-ci/bin/python
+          - os: windows-latest
+            python: .venv-ci/Scripts/python.exe
+          - os: macos-15
+            python: .venv-ci/bin/python
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: python -m pip install --isolated -r app/requirements-czsc-runtime.lock
+      - run: python app/build_czsc_runtime.py --out app/vendor/wheels --no-install
+      - run: python install.py --venv-dir .venv-ci --device cpu
+      - run: ${{ matrix.python }} -m my_strategy.scripts.ci_guard --skip-docker
+      - run: ${{ matrix.python }} app/verify_installation.py --device cpu --output installation-cpu.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: app/vendor/wheels/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installation-${{ matrix.os }}
+          path: installation-cpu.json
+  archive:
+    needs: wheels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --isolated -r app/requirements-czsc-runtime.lock
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: .scratch/native-assets
+      - run: python app/build_release.py --output-dir dist/releases/0.1.0 --wheel-dir .scratch/native-assets/wheels-ubuntu-latest --wheel-dir .scratch/native-assets/wheels-windows-latest --wheel-dir .scratch/native-assets/wheels-macos-15
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KHQuant-source-release
+          path: |
+            dist/releases/0.1.0/*.zip
+            dist/releases/0.1.0/SHA256SUMS.txt
+  mps:
+    if: ${{ inputs.verify_mps }}
+    runs-on: [self-hosted, macOS, ARM64, khquant-mps]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: python -m pip install --isolated -r app/requirements-czsc-runtime.lock
+      - run: python app/build_czsc_runtime.py --out app/vendor/wheels --no-install
+      - run: python install.py --venv-dir .venv-ci --device mps
+      - run: .venv-ci/bin/python -m pytest app/my_strategy/tests/test_torch_devices.py app/my_strategy/tests/test_czsc_research_ml.py app/my_strategy/tests/test_czsc_predictor_session.py app/my_strategy/tests/test_czsc_compute.py -q
+      - run: .venv-ci/bin/python app/verify_installation.py --device mps --output installation-mps.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MPS-hardware-verification
+          path: installation-mps.json

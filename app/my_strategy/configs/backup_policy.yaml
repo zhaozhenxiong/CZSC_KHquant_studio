@@ -1,0 +1,2 @@
+# Explicit raw SQLite backup policy. No model/result migration is configured.
+raw_backup_enabled: false

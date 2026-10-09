@@ -1,0 +1,23 @@
+name: khquant-workspace
+
+services:
+  khquant-train:
+    image: ${KHQUANT_IMAGE:-khquant:local}
+    working_dir: /workspace
+    environment:
+      TZ: ${KHQUANT_TZ:-Asia/Shanghai}
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /workspace
+      KHQUANT_WORKSPACE_ROOT: /workspace
+      KHQUANT_PROJECT_ROOT: /workspace
+      KHQUANT_DATA_ROOT: /workspace/data
+      KHQUANT_RAW_DB: /workspace/data/raw/khquant_raw.db
+      KHQUANT_PROCESSED_DB: /workspace/data/processed/warehouse/khquant.db
+      KHQUANT_ARTIFACT_ROOT: /workspace/artifacts
+      KHQUANT_OUTPUT_ROOT: /workspace/data/processed/ai_agent_screen
+      KHQUANT_LOG_ROOT: /workspace/data/processed/logs
+      KHQUANT_METADATA_ROOT: /workspace/data/metadata
+      KHQUANT_STORAGE_MODE: ${KHQUANT_STORAGE_MODE:-db}
+    volumes:
+      - .:/workspace
+    command: ["workspace", "train-models", "--help"]

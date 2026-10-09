@@ -1,0 +1,90 @@
+data_root: "my_strategy/data"
+
+cache:
+  format: "parquet"
+  overwrite_on_failure: false
+  min_rows_for_valid_stock: 100
+  allow_use_old_cache: true
+
+stock_pool:
+  default_mode: "custom"
+  custom_pool_path: "my_strategy/data/raw/custom_pool/my_pool.csv"
+  all_a_cache_path: "my_strategy/data/raw/stock_basic/all_a_stock_list.parquet"
+  all_a_min_count: 3000
+
+update:
+  start_date: "2015-01-01"
+  auto_incremental: true
+  update_after_hour: 16
+  max_retry: 3
+  sleep_seconds: 0.0
+  use_batch: true
+
+industry_classification:
+  # Reject low-coverage refreshes, any regression from the current authority,
+  # and contradictory source records before opening a SQLite write transaction.
+  min_coverage: 0.995
+  max_coverage_drop: 0.0
+  max_source_conflicts: 0
+  dashboard_warn_coverage: 0.999
+  max_source_age_days: 14
+
+provider_rate_limits:
+  # 同花顺金融数据 API supports up to 20 requests/second. Keep a margin for
+  # retries and concurrent dashboard/update jobs; Tushare retains its own cap.
+  fuyao:
+    calls: 15
+    per_seconds: 1
+  tushare:
+    calls: 45
+    per_seconds: 60
+
+rate_limit:
+  # Tushare's `daily` interface allows 50 calls/minute (exceeding it returns a
+  # 频率超限 error and flips the provider's process-wide global-failed flag).
+  # Keep 5 calls of headroom at 45/min: running at the exact 50/min cap has no
+  # margin against window-boundary jitter or retries, which triggers the error.
+  # Concurrency is bounded by the update worker count regardless.
+  calls: 45
+  per_seconds: 60
+
+data_sources:
+  primary: "fuyao"
+  fallback:
+    - "tushare"
+    - "akshare"
+    - "local_csv"
+
+fuyao:
+  base_url: "https://fuyao.aicubes.cn"
+  timeout_seconds: 20
+  adjust: "none"
+
+# API key is intentionally read only from the user environment variable
+# HITHINK_FINANCE_API_KEY; do not add it to this file.
+
+tushare:
+  token: ""  # Read TUSHARE_TOKEN from the local environment
+  # A single `daily` query returns at most 6000 rows, so a 300-code batch
+  # silently truncates to 20 rows/stock.  Two codes per call stay under the cap
+  # while returning the full 2015->today history (~2800 rows/stock).
+  batch_size: 2
+  # Incremental updates only need a few rows/stock, so the updater groups those
+  # codes into bulk batches (200 codes x ~20 rows stays far under the 6000-row
+  # cap) and reserves `batch_size` batches for long/full-history codes.
+  bulk_batch_size: 200
+
+minute_data_sources:
+  primary: "akshare"
+  fallback:
+    - "local_csv"
+
+minute:
+  default_period: "5"
+  output_root: "my_strategy/data/processed/intraday_backtest"
+
+indexes:
+  benchmark:
+    - "000300.SH"
+    - "000905.SH"
+    - "000001.SH"

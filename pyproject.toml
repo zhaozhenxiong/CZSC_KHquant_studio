@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools==83.0.0", "wheel==0.47.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "khquant"
+version = "0.1.0"
+description = "CZSC structure, price-volume and PyTorch research workbench"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dynamic = ["dependencies"]
+
+[project.scripts]
+khquant = "my_strategy.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "app"}
+include-package-data = false
+packages = ["my_strategy", "my_strategy.adapters", "my_strategy.core", "my_strategy.data_manager", "my_strategy.execution", "my_strategy.scripts", "my_strategy.services", "my_strategy.storage", "my_strategy.validation", "my_strategy.web_dashboard", "my_strategy.web_dashboard.scripts"]
+
+[tool.setuptools.package-data]
+my_strategy = ["configs/*.json", "configs/*.yaml", "configs/cost/*.yaml", "web_dashboard/static/*", "web_dashboard/static/**/*", "scripts/templates/*", "agent_prompts/*"]

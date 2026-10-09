@@ -1,0 +1,47 @@
+# app/.gitignore — extends the top-level .gitignore with app-specific rules
+
+# Local market data and generated strategy artifacts
+my_strategy/data/
+my_strategy/artifacts/
+results/
+
+# Legacy granular ignores (kept while migrating to the full-directory rules above)
+my_strategy/data/raw/
+my_strategy/data/processed/
+my_strategy/data/artifacts/
+my_strategy/data/qlib_data/
+my_strategy/data/archive/
+my_strategy/data/legacy_strategy_lab_cache/
+my_strategy/data/metadata/data_source_status.jsonl
+my_strategy/artifacts/runs/
+
+# Legacy root-level outputs inside app/
+results/charts/
+results/daily/
+results/trades/
+results/reports/
+results/scans/
+results/qbot_signals/
+
+# External reference projects are mounted or bridged explicitly when needed.
+Qbot-main/
+qlib-main/
+
+# Runtime / state files specific to this app
+state/
+E_RUNTIME_COMPLETE
+
+# macOS resource fork files on non-APFS volumes
+._*
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Native build intermediates; the frozen wheel remains distributable.
+!vendor/czsc/
+!vendor/czsc/**
+vendor/czsc/target/
+.runtime-build/
+.runtime-wheels/

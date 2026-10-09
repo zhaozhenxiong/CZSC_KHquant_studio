@@ -1,0 +1,67 @@
+# Git and local agent state
+.git/
+.github/
+.agents/
+.codex/
+_incoming/
+
+# Python cache and local environments
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local data, generated artifacts, and heavy model outputs
+my_strategy/data/
+my_strategy/artifacts/
+results/
+models/
+checkpoints/
+*.db
+*.sqlite
+*.sqlite3
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.onnx
+*.h5
+*.ckpt
+
+# External reference projects are mounted or bridged explicitly when needed.
+Qbot-main/
+qlib-main/
+
+# Build and editor noise
+dist/
+build/
+*.egg-info/
+*.log
+logs/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# macOS resource fork / xattr files that break Docker build context on APFS
+._*
+._.claude
+.DS_Store
+.claude/
+**/.claude/

@@ -1,0 +1,114 @@
+# Top-level KHQuant .gitignore
+# ============================
+# This file covers the whole project. app/.gitignore extends it with app-specific rules.
+
+# Convenience symlink from repo root to app/my_strategy (must not be committed)
+/my_strategy
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# Local Python environments
+.venv/
+.venv*/
+venv/
+env/
+ENV/
+
+# Test / lint caches
+.pytest_cache/
+.pytest-tmp/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.tox/
+.nox/
+.scratch/
+.research-envs/
+.pytest*/
+_tmp_pytest*/
+!app/vendor/wheels/
+!app/vendor/wheels/*.whl
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+!.env.native.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+
+# Logs
+*.log
+logs/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Model artifacts and checkpoints
+models/
+checkpoints/
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.onnx
+*.h5
+*.ckpt
+*.safetensors
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+# Archives and large local bundles
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+._*
+.vscode/
+.idea/
+
+# Claude / Serena local state
+.claude/*
+!.claude/launch.json
+!.claude/serve_dashboard.py
+.serena/project.local.yml
+.serena/cache/
+.serena/memories/
+
+# Local runtime state and data (keep out of git)
+.khquant/
+state/
+runtime/
+
+# External data and artifacts (mounted at runtime)
+data/
+artifacts/
+
+# macOS resource fork files on non-APFS volumes
+._*
+
+# Windows portable runtime marker
+E_RUNTIME_COMPLETE
+!.gitkeep
+!.keep
+!**/README.md
+app/my_strategy/.serena/

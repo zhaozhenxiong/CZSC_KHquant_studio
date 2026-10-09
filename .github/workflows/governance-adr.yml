@@ -1,0 +1,33 @@
+name: CZSC runtime checks
+on: [pull_request, push]
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: .venv-ci/bin/python
+          - os: windows-latest
+            python: .venv-ci/Scripts/python.exe
+          - os: macos-15
+            python: .venv-ci/bin/python
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: python -m pip install --isolated -r app/requirements-czsc-runtime.lock
+      - run: python app/build_czsc_runtime.py --out app/vendor/wheels --no-install
+      - run: python install.py --venv-dir .venv-ci --device cpu
+      - run: ${{ matrix.python }} -m my_strategy.scripts.ci_guard --skip-docker
+      - run: ${{ matrix.python }} app/verify_installation.py --device cpu --output installation-cpu.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.os }}
+          path: |
+            app/vendor/wheels/*.whl
+            app/vendor/wheels/wheel-index.json
+            installation-cpu.json

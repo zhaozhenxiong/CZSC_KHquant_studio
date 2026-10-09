@@ -1,0 +1,11 @@
+# Structure visualization
+
+Display actual CZSC day/week/month bars, fractals, pens and zones. Finished pens/valid zones differ from unfinished structures. Show confirmed_at and forming state. Do not fabricate a public segment API absent from the frozen source.
+
+Replay changes as_of and rebuilds from observable bars. Never crop a final structure into a historical claim. Weekly/monthly closure waits for the next observed bucket. Chart trade markers must originate from BrokerSimulator Ledger, using the execution date and price, with signal date shown separately. Show unadjusted-price and execution limitations.
+
+The 2026-10-02 chart additions are display-only: SMA5/10/20/60 and BOLL20 with population standard deviation times two, computed on the selected frequency before display clipping. Provisional higher buckets remain marked forming. MA20/60 directions compare five periods earlier. The 70% chip estimate uses the preceding 120 daily bars, HLC/3 weighted by volume, with cumulative-volume quantiles 15%/50%/85%; weekly/monthly anchors use daily values no later than themselves. It is not an actual shareholder cost distribution and has no turnover decay. Do not restore the retired chip warehouse or change strategy/model features for these overlays.
+
+Top fractals and downward structures are green; bottom fractals and upward structures are red. Zone direction compares both bounds with the preceding zone: both higher/up, both lower/down, otherwise gray/range. Native cxt_five_bi_V230619 divergence labels must use only finished pens (the appropriate di), preserve anchor/confirmation/first observation separately, and say five-pen pattern reference, not confirmed trading advice. Each overlay has an independent toggle.
+
+Intent reference prices use the signal day's close and date, never a future execution price. The next-session summary uses only the final day's native Position decision: new BUY/SELL, otherwise theoretical HOLD/WAIT. A verified independent calendar supplies the next date; missing/stale data must remain explicit. The right-side 32-bin profile uses the same observable 120-day HLC/3 volume prefix and shares the chart price coordinates. Display-range dates and zoom change only the viewport; the folded historical replay still rebuilds with as_of. Show the information cutoff separately and clear old guidance when analysis fails.

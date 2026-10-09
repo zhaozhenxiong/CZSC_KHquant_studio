@@ -1,0 +1,18 @@
+{
+  "version": "czsc_price_volume_mlp_v1",
+  "feature_start": "2023-01-01",
+  "horizon": 10,
+  "initial_cash": 100000,
+  "seed": 42,
+  "epochs": 20,
+  "probability_threshold": 0.55,
+  "drawdown_tolerance": 0.02,
+  "min_round_trips": 30,
+  "folds": [
+    {"name": "2025Q2", "train_end": "2024-12-31", "validation_start": "2025-01-01", "validation_end": "2025-03-31", "test_start": "2025-04-01", "test_end": "2025-06-30"},
+    {"name": "2025Q4", "train_end": "2025-06-30", "validation_start": "2025-07-01", "validation_end": "2025-09-30", "test_start": "2025-10-01", "test_end": "2025-12-31"},
+    {"name": "2026Q2", "train_end": "2025-12-31", "validation_start": "2026-01-01", "validation_end": "2026-03-31", "test_start": "2026-04-01", "test_end": "2026-06-30"}
+  ],
+  "holdout": {"name": "2026Q3", "train_end": "2026-03-31", "validation_start": "2026-04-01", "validation_end": "2026-06-30", "test_start": "2026-07-01", "test_end": "2026-09-30"},
+  "production": {"train_end": "2026-06-30", "validation_start": "2026-07-01", "validation_end": "2026-09-30"}
+}
