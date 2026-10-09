@@ -12,9 +12,9 @@ from my_strategy.storage.access_layer import get_data_access
 
 
 def normalize_stock_code(code: str) -> str:
-    code = str(code).strip().split(".")[0].zfill(6)
-    suffix = "SH" if code.startswith("6") else "SZ"
-    return f"{code}.{suffix}"
+    from .market_data_provider import _normalize_stock_code
+
+    return _normalize_stock_code(code)
 
 
 class StockPoolManager:

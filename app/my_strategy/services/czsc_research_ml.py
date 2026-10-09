@@ -186,6 +186,8 @@ def _device(name: str | None):
 
 def _network(feature_count: int, hidden_sizes: Sequence[int]):
     import torch
+    if len(hidden_sizes) == 0:
+        return torch.nn.Sequential(torch.nn.Linear(feature_count, 1))
     if len(hidden_sizes) != 2 or any(not isinstance(size, int) or size < 1 for size in hidden_sizes):
         raise ValueError("MLP requires two positive hidden sizes")
     return torch.nn.Sequential(torch.nn.Linear(feature_count, hidden_sizes[0]), torch.nn.ReLU(),
@@ -344,7 +346,8 @@ def train_model(dataset: pd.DataFrame, feature_columns: Sequence[str], output_di
                 "feature_columns": list(feature_columns), "hidden_sizes": list(hidden_sizes), "model_version": MODEL_VERSION,
                 "feature_version": feature_version, "feature_schema_hash": feature_schema_hash}, checkpoint)
     schema = {"columns": list(feature_columns), "model_version": MODEL_VERSION, "hidden_sizes": list(hidden_sizes)}
-    manifest = {"model_version": MODEL_VERSION, "label_version": dataset.attrs.get("label_version", LABEL_VERSION),
+    manifest = {"model_version": MODEL_VERSION, "architecture": "ma_logistic" if not hidden_sizes else "mlp",
+                "label_version": dataset.attrs.get("label_version", LABEL_VERSION),
                 "label_contract": dataset.attrs.get("label_contract", {}), "feature_version": feature_version,
                 "feature_schema_hash": feature_schema_hash, "feature_schema_binding": "bound" if feature_version is not None else "unbound_research_fixture",
                 "data_version": dataset.attrs.get("data_version"), "schema": schema, "schema_sha256": _hash(schema),

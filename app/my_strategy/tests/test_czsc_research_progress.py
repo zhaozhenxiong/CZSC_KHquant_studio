@@ -135,22 +135,23 @@ state.scan={};
 renderComputeResult('scan',{research:true,selected_device:'cuda:1',cuda_work:true,model_inference_rows:64,
   model_inference_batches:2,cpu_workers:4,cache_hits:63});
 let text=element('scan-compute-result').textContent;
-assert(text.includes('CUDA MLP 推理') && text.includes('64 行') && text.includes('2 个推理批次'));
-assert(text.includes('CPU 4 个准备进程') && text.includes('特征缓存命中 63'));
+assert(text.includes('CUDA 模型推理') && text.includes('64 行') && text.includes('2 个推理批次'));
+assert(text.includes('CPU 准备并发上限 4') && text.includes('特征缓存命中 63'));
+assert(!text.includes('个准备进程'));
 renderComputeResult('scan',{research:true,selected_device:'cuda:1',cuda_work:false,model_inference_rows:0});
 text=element('scan-compute-result').textContent;
 assert(text.includes('未执行 ML 推理（0 行）') && !text.includes('本次 CUDA'));
 renderComputeResult('scan',{research:true,selected_device:'cpu',cuda_work:false,model_inference_rows:4});
-assert(element('scan-compute-result').textContent.includes('CPU MLP 推理'));
+assert(element('scan-compute-result').textContent.includes('CPU 模型推理'));
 renderComputeResult('scan',{research:true,selected_device:'mps',mps_work:true,model_inference_rows:4});
-assert(element('scan-compute-result').textContent.includes('MPS MLP 推理'));
+assert(element('scan-compute-result').textContent.includes('MPS 模型推理'));
 renderComputeResult('scan',{research:true,selected_device:'mps',mps_work:false,model_inference_rows:0});
 assert(!element('scan-compute-result').textContent.includes('本次 MPS'));
 renderComputeResult('scan',{selected_device:'mps',actual_device:'cpu',backend:'numpy',bars:4,mps_work:false});
 assert(element('scan-compute-result').textContent.includes('CPU 信号计算'));
 assert(element('scan-compute-result').textContent.includes('CPU float64 精度'));
 renderComputeResult('scan',{research:true,training:true,selected_device:'mps',mps_work:true,model_training_models:2,model_training_batches:10});
-assert(element('scan-compute-result').textContent.includes('MPS MLP 训练'));
+assert(element('scan-compute-result').textContent.includes('MPS 模型训练'));
 assert(element('scan-compute-result').textContent.includes('10 个优化批次'));
 renderComputeResult('scan',{research:true,selected_device:'cuda:1'});
 assert(element('scan-compute-result').textContent.includes('未保存本次 ML 推理统计'));
@@ -177,7 +178,7 @@ assert(taskActions(running).includes('data-cancel="fixture"'));
 running.status='succeeded'; running.compute_info={research:true,selected_device:'cuda:1',cuda_work:true,
   model_inference_rows:64,model_inference_batches:2};
 text=taskDetail(running);
-assert(text.includes('CUDA MLP 推理') && !text.includes('当前阶段'));
+assert(text.includes('CUDA 模型推理') && !text.includes('当前阶段'));
 global.sessionStorage={getItem:()=>null};
 global.fetch=async()=>({ok:true,status:200,text:async()=>JSON.stringify({available:true,requested_device:'mps',selected_device:'mps',
   devices:[{type:'mps',device:'mps',index:null,name:'Apple MPS',total_memory_bytes:null}]})});

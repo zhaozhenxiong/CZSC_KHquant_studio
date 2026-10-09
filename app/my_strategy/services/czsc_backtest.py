@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
+import copy
 import math
 from pathlib import Path
 import re
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -66,18 +67,26 @@ def _planned_entry_rejection(plan: Any, intent: dict, symbol: str, date: str,
 def execute_decisions(symbol: str, frame: pd.DataFrame, decisions: list[dict[str, Any]],
                       start: str, initial_cash: float, config: dict[str, Any], run_id: str,
                       *, market_dates: list[str] | None = None, verified_sources=None,
-                      entry_policy: str = "legacy") -> dict[str, Any]:
+                      entry_policy: str = "legacy",
+                      exit_policy: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None,
+                      entry_gate: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None) -> dict[str, Any]:
     """Match only previously observed targets at the next bar's open.
 
     Sizing/liquidity use prior close data. Legacy targets permit retries. Fresh
     and risk policies require a frozen one-session plan and never add shares to
     an existing position. Planned account exits persist until actually flat.
     No forced final liquidation invents an execution after the requested end.
+    An optional research callback observes actual close state only. Its explicit
+    arm may request a persistent next-open exit, without vetoing hard exits.
     """
     settings = config["execution"]
     if entry_policy not in {"legacy", "fresh", "risk"}:
         raise ValueError("unsupported entry policy")
     planned = entry_policy != "legacy"
+    if exit_policy is not None and not planned:
+        raise ValueError("actual holding exit research requires fresh or risk entry policy")
+    if entry_gate is not None and not planned:
+        raise ValueError("actual candidate entry research requires fresh or risk entry policy")
     if planned:
         dates = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d").tolist()
         if (not market_dates or list(market_dates) != sorted(set(market_dates))
@@ -102,9 +111,14 @@ def execute_decisions(symbol: str, frame: pd.DataFrame, decisions: list[dict[str
     next_market = dict(zip(market_dates[:-1], market_dates[1:])) if market_dates is not None else None
     daily, rejected = [], []
     last_buy_date: str | None = None
+    last_buy_index: int | None = None
     entry_diagnostics, used_plans, cancellations = [], set(), set()
     actual_position: dict[str, Any] | None = None
     sell_pending: str | None = None
+    model_exit_request: dict[str, Any] | None = None
+    holding_snapshots, exit_policy_diagnostics = [], []
+    entry_gate_request: dict[str, Any] | None = None
+    entry_gate_snapshots, entry_gate_diagnostics = [], []
     seasoned = 0
     for index, row in enumerate(rows):
         date = pd.Timestamp(row.date).date().isoformat()
@@ -118,10 +132,15 @@ def execute_decisions(symbol: str, frame: pd.DataFrame, decisions: list[dict[str
                 plan = intent.get("entry_plan")
                 if planned and held > 0:
                     if target == 0:
-                        sell_pending = sell_pending or "native_target_exit"
+                        sell_pending = "native_target_exit" if exit_policy is not None and sell_pending == "research_exit_model" else sell_pending or "native_target_exit"
                     stop = actual_position["stop_price"] if actual_position else None
                     if stop is not None and (float(previous.close) <= stop or float(row.open) <= stop):
-                        sell_pending = sell_pending or "actual_account_stop"
+                        if exit_policy is not None and sell_pending == "research_exit_model":
+                            sell_pending = "actual_account_stop"
+                        else:
+                            sell_pending = sell_pending or "actual_account_stop"
+                    if model_exit_request and not sell_pending:
+                        sell_pending = "research_exit_model"
                     if sell_pending:
                         side, target = "SELL", 0.0
                 if planned and side == "BUY":
@@ -140,6 +159,18 @@ def execute_decisions(symbol: str, frame: pd.DataFrame, decisions: list[dict[str
                         side = None
                     else:
                         used_plans.add(plan["plan_id"])
+                        if (entry_gate_request is not None
+                                and entry_gate_request["signal_date"] == intent["date"]
+                                and entry_gate_request["plan_id"] == plan["plan_id"]
+                                and entry_gate_request["request_entry"] is False):
+                            reason = "policy_entry_gate_veto"
+                            entry_diagnostics.append({"date": date, "signal_date": intent["date"], "symbol": symbol,
+                                "plan_id": plan["plan_id"], "status": "cancelled", "reason": reason,
+                                "entry_policy": entry_policy, "model_contract_hash": entry_gate_request["contract_hash"]})
+                            rejected.append({"date": date, "signal_date": intent["date"], "symbol": symbol,
+                                "action": "BUY", "reason": reason, "target_weight": target,
+                                "reference_price": float(row.open)})
+                            side = None
                 if side is not None:
                     rejection = _guard(symbol, row, previous, side, seasoned, settings)
                     if side == "BUY" and intent.get("eligible") is False:
@@ -191,7 +222,8 @@ def execute_decisions(symbol: str, frame: pd.DataFrame, decisions: list[dict[str
                     else:
                         order = Order(date=date, symbol=symbol, side=side, shares=shares, price=price,
                                       target_weight=target, reason=("CZSC 确认结构目标；前日收盘信号、次日开盘执行" if not planned else
-                                          "冻结入场计划；次日开盘执行" if side == "BUY" else sell_pending or "native_target_exit"), signal_date=intent["date"],
+                                          "冻结入场计划；次日开盘执行" if side == "BUY" else sell_pending or "native_target_exit"),
+                                      signal_date=intent["date"],
                                       applied_slippage=cost.slippage)
                         entry = broker.submit(order, mark_price=float(row.open), equity_before=equity_before,
                                               portfolio_prices={symbol: float(row.open)})
@@ -203,6 +235,7 @@ def execute_decisions(symbol: str, frame: pd.DataFrame, decisions: list[dict[str
                                     "reason": "broker_rejected", "entry_policy": entry_policy})
                         elif side == "BUY":
                             last_buy_date = date
+                            last_buy_index = index
                             if planned:
                                 actual_cost = float(entry.holding_cost_after)
                                 cost_stop = actual_cost * (1 - float(config["position"]["stop_loss"]) / 10000)
@@ -222,8 +255,12 @@ def execute_decisions(symbol: str, frame: pd.DataFrame, decisions: list[dict[str
                                 "plan_id": (actual_position or {}).get("plan_id"), "action": "SELL", "status": "filled",
                                 "reason": sell_pending, "execution_price": price, "remaining_shares": broker.shares(symbol),
                                 "stop_price": (actual_position or {}).get("stop_price"), "entry_policy": entry_policy})
+                            if exit_policy is not None and model_exit_request is not None:
+                                entry_diagnostics[-1].update(model_request_date=model_exit_request["signal_date"],
+                                    model_contract_hash=model_exit_request["contract_hash"])
                             if broker.shares(symbol) == 0:
                                 actual_position, sell_pending = None, None
+                                model_exit_request = None
             daily.append({"date": date, "cash": float(broker.cash), "shares": broker.shares(symbol), "close": float(row.close),
                           "market_value": broker.market_value(symbol, float(row.close)), "equity": broker.equity({symbol: float(row.close)}),
                           "target_weight": float(decisions[index]["target_weight"]), "run_id": run_id})
@@ -231,6 +268,77 @@ def execute_decisions(symbol: str, frame: pd.DataFrame, decisions: list[dict[str
                 daily[-1].update(entry_policy=entry_policy, actual_entry_price=(actual_position or {}).get("entry_price"),
                     actual_stop_price=(actual_position or {}).get("stop_price"), actual_plan_id=(actual_position or {}).get("plan_id"),
                     sell_pending=sell_pending)
+            if exit_policy is not None and broker.shares(symbol) > 0:
+                position = actual_position or {}
+                snapshot = {"symbol": symbol, "date": date, "available_at": date + "T15:00:00+08:00",
+                    "bar_index": index, "shares": broker.shares(symbol), "cash": float(broker.cash),
+                    "equity": float(daily[-1]["equity"]), "close": float(row.close),
+                    "initial_cash": initial_cash,
+                    "actual_cost_per_share": float(broker.avg_cost[symbol]), "entry_date": last_buy_date,
+                    "holding_bars": index - last_buy_index if last_buy_index is not None else None,
+                    "entry_shares": position.get("entry_shares"), "stop_price": position.get("stop_price"),
+                    "entry_policy": entry_policy, "plan_id": position.get("plan_id"),
+                    "sell_pending": sell_pending, "native_target_weight": float(decisions[index]["target_weight"]),
+                    "ledger_entries_seen": len(broker.ledger.entries),
+                    "last_ledger_entry": broker.ledger.entries[-1].to_dict(),
+                    "next_market_session": next_market.get(date),
+                    "bar": {key: getattr(row, key) for key in ("open", "high", "low", "close", "volume", "amount", "source", "has_trade_price")}}
+                holding_snapshots.append(copy.deepcopy(snapshot))
+                response = exit_policy(copy.deepcopy(snapshot)) or {}
+                if not isinstance(response, dict):
+                    raise ValueError("exit_policy must return a research decision mapping")
+                probability = response.get("probability")
+                if probability is not None and (not math.isfinite(float(probability)) or not 0 <= float(probability) <= 1):
+                    raise ValueError("exit probability must be finite within [0, 1] or unavailable")
+                applied = response.get("apply") is True and response.get("research_arm") is True
+                if applied and (response.get("head") != "holding_exit" or not response.get("contract_hash")):
+                    raise ValueError("applied exit research requires an independent holding-exit contract")
+                hard_exit = (snapshot["native_target_weight"] == 0 or
+                             snapshot["stop_price"] is not None and float(row.close) <= float(snapshot["stop_price"]) or
+                             sell_pending not in {None, "research_exit_model"})
+                request = applied and bool(response.get("request_exit")) and probability is not None and not hard_exit
+                if request and snapshot["next_market_session"] is not None and model_exit_request is None:
+                    model_exit_request = {**copy.deepcopy(response), "signal_date": date,
+                                          "execution_not_before": snapshot["next_market_session"]}
+                exit_policy_diagnostics.append({**copy.deepcopy(response), "date": date, "shares": snapshot["shares"],
+                    "ledger_entries_seen": snapshot["ledger_entries_seen"], "applied": bool(request and snapshot["next_market_session"]),
+                    "hard_exit_priority": bool(hard_exit), "next_market_session": snapshot["next_market_session"],
+                    "pending_signal_date": (model_exit_request or {}).get("signal_date")})
+            if entry_gate is not None:
+                # Decide at this close using the actual account, before observing
+                # the next open. A veto consumes the existing one-session plan;
+                # it never manufactures an actual holding or schedules retries.
+                entry_gate_request = None
+                candidate = decisions[index]
+                candidate_plan = candidate.get("entry_plan")
+                if (broker.shares(symbol) == 0 and float(candidate["target_weight"]) > 0
+                        and isinstance(candidate_plan, dict) and candidate_plan.get("status") == "active"
+                        and candidate_plan.get("entry_allowed") is True):
+                    entry_snapshot = {"symbol": symbol, "date": date, "available_at": date + "T15:00:00+08:00",
+                        "bar_index": index, "shares": 0, "cash": float(broker.cash), "equity": float(daily[-1]["equity"]),
+                        "close": float(row.close), "entry_policy": entry_policy,
+                        "entry_plan": copy.deepcopy(candidate_plan), "plan_id": candidate_plan.get("plan_id"),
+                        "target_weight": float(candidate["target_weight"]), "initial_cash": initial_cash,
+                        "ledger_entries_seen": len(broker.ledger.entries), "next_market_session": next_market.get(date),
+                        "bar": {key: getattr(row, key) for key in ("open", "high", "low", "close", "volume", "amount", "source", "has_trade_price")}}
+                    entry_gate_snapshots.append(copy.deepcopy(entry_snapshot))
+                    response = entry_gate(copy.deepcopy(entry_snapshot)) or {}
+                    if not isinstance(response, dict):
+                        raise ValueError("entry_gate must return an independent research decision mapping")
+                    probability = response.get("probability")
+                    if probability is not None and (not math.isfinite(float(probability)) or not 0 <= float(probability) <= 1):
+                        raise ValueError("policy entry probability must be finite within [0, 1] or unavailable")
+                    applied = response.get("apply") is True and response.get("research_arm") is True
+                    if applied and (response.get("head") != "policy_entry" or not response.get("contract_hash")
+                            or probability is None or not isinstance(response.get("request_entry"), bool)):
+                        raise ValueError("applied candidate entry requires an independent actual-policy contract and probability")
+                    if applied and entry_snapshot["next_market_session"] is not None:
+                        entry_gate_request = {**copy.deepcopy(response), "signal_date": date,
+                            "plan_id": candidate_plan["plan_id"], "execution_not_before": entry_snapshot["next_market_session"]}
+                    entry_gate_diagnostics.append({**copy.deepcopy(response), "date": date,
+                        "plan_id": candidate_plan.get("plan_id"), "cash": entry_snapshot["cash"],
+                        "ledger_entries_seen": entry_snapshot["ledger_entries_seen"], "applied": bool(applied and entry_snapshot["next_market_session"]),
+                        "next_market_session": entry_snapshot["next_market_session"]})
         if row.volume > 0 and row.amount > 0 and getattr(row, "has_trade_price", None) == 1 and not legacy_fuyao_source(getattr(row, "source", "")):
             seasoned += 1
     if not daily:
@@ -250,6 +358,12 @@ def execute_decisions(symbol: str, frame: pd.DataFrame, decisions: list[dict[str
     if planned:
         result.update(entry_policy=entry_policy, entry_diagnostics=entry_diagnostics, actual_position=actual_position,
                       sell_pending=sell_pending, consumed_plan_ids=sorted(used_plans))
+    if exit_policy is not None:
+        result.update(holding_snapshots=holding_snapshots, exit_policy_diagnostics=exit_policy_diagnostics,
+                      exit_policy_scope="actual_broker_close_state_next_verified_open_research_only")
+    if entry_gate is not None:
+        result.update(entry_gate_snapshots=entry_gate_snapshots, entry_gate_diagnostics=entry_gate_diagnostics,
+                      entry_gate_scope="actual_flat_broker_close_state_one_session_plan_research_only")
     return result
 
 

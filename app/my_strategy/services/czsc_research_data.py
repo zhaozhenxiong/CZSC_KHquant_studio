@@ -14,7 +14,7 @@ from my_strategy.adapters.czsc_adapter import raw_path
 
 
 # These names refer to actual unadjusted retrieval contracts, not renamed rows.
-VERIFIED_SOURCES = frozenset({"tushare", "tushare:daily", "fuyao_unadjusted_v1", "baostock"})
+VERIFIED_SOURCES = frozenset({"tushare", "tushare:daily", "fuyao_unadjusted_v1", "baostock", "eastmoney_unadjusted_v1", "sina_unadjusted_v1", "tencent_star_unadjusted_v1"})
 
 
 def _main_board(symbol: str) -> bool:

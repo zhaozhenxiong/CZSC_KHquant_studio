@@ -26,6 +26,7 @@ class AnalysisRequest(BaseModel):
     end: date | None = None
     as_of: str | None = None
     research: bool = Field(default=True, strict=True)
+    model_family: Literal["ma_trend", "dual", "wyckoff"] = "ma_trend"
     usage_mode: Literal["production", "historical", "retrospective"] = "historical"
     model_policy: Literal["auto", "pinned"] = "auto"
     entry_policy: Literal["legacy", "fresh", "risk"] = "legacy"
@@ -78,6 +79,8 @@ class TaskSpec(BaseModel):
     cpu_workers: int | None = Field(default=None, ge=1, le=16, strict=True)
     batch_size: int | None = Field(default=None, ge=1, le=128, strict=True)
     research: bool = Field(default=False, strict=True)
+    model_family: Literal["ma_trend", "dual", "wyckoff"] = "ma_trend"
+    source_training_run_id: str | None = None
     model_run_id: str | None = None
     model_fold: str | None = None
     calendar_run_id: str | None = None
@@ -90,6 +93,13 @@ class TaskSpec(BaseModel):
     def research_identity(cls, value):
         if value is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,179}", value):
             raise ValueError("研究运行标识不合法")
+        return value
+
+    @field_validator("source_training_run_id")
+    @classmethod
+    def source_identity(cls, value):
+        if value is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,179}", value):
+            raise ValueError("冻结来源运行标识不合法")
         return value
 
     @field_validator("device")
@@ -121,7 +131,7 @@ class TaskSpec(BaseModel):
 
 
 class TaskRequest(BaseModel):
-    kind: Literal["scan", "backtest", "update", "research_train"]
+    kind: Literal["scan", "backtest", "update", "research_train", "dual_research_train", "wyckoff_research_train"]
     spec: TaskSpec = Field(default_factory=TaskSpec)
 
     @model_validator(mode="after")
@@ -134,6 +144,14 @@ class TaskRequest(BaseModel):
             raise ValueError("事后模型研究仅用于结构分析，不用于策略扫描或回测认证")
         if self.kind == "research_train" and (self.spec.end is None or self.spec.calendar_run_id is None):
             raise ValueError("研究训练需要明确截止日及已核验交易日历运行")
+        if self.kind == "dual_research_train" and (self.spec.end is None or self.spec.source_training_run_id is None):
+            raise ValueError("双专家研究需要明确截止日及冻结来源运行")
+        if self.kind == "dual_research_train":
+            self.spec.model_family = "dual"
+        if self.kind == "wyckoff_research_train":
+            if self.spec.end is None or self.spec.source_training_run_id is None:
+                raise ValueError("威科夫研究需要明确截止日及冻结来源运行")
+            self.spec.model_family = "wyckoff"
         if self.kind in {"scan", "backtest"} and self.spec.start is None:
             self.spec.start = date(2026, 1, 1)
             self.spec.dates()
@@ -212,6 +230,18 @@ async def compute(device: str | None = None):
 async def research_status():
     from my_strategy.services.czsc_research import research_status as inspect_research
     return await asyncio.to_thread(inspect_research)
+
+
+@router.get("/research/dual-status")
+async def dual_status():
+    from my_strategy.services.czsc_dual_runtime import dual_research_status
+    return await asyncio.to_thread(dual_research_status)
+
+
+@router.get("/research/wyckoff-status")
+async def wyckoff_status():
+    from my_strategy.services.czsc_wyckoff_runtime import wyckoff_research_status
+    return await asyncio.to_thread(wyckoff_research_status)
 
 
 class ModelPromotionRequest(BaseModel):

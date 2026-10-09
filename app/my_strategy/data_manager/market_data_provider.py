@@ -13,9 +13,12 @@ from __future__ import annotations
 
 import abc
 import contextlib
+import hashlib
 import json
 import logging
+import math
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -412,6 +415,343 @@ class AkShareProvider(MarketDataProvider):
         df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
         df = _normalize_minute_frame(df, code, period)
         return ProviderResult(not df.empty, df, "akshare", "" if not df.empty else "empty minute data")
+
+
+class EastmoneyProvider(MarketDataProvider):
+    """Historical daily bars with a fixed unadjusted price and unit contract."""
+
+    name = "eastmoney_unadjusted_v1"
+    _endpoint = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+
+    def healthcheck(self) -> ProviderResult:
+        end = pd.Timestamp.now(tz="Asia/Shanghai").normalize().tz_localize(None)
+        return self.fetch_daily("600519.SH", (end - pd.Timedelta(days=14)).date().isoformat(), end.date().isoformat())
+
+    def fetch_daily(self, code: str, start_date: str, end_date: str, **kwargs: Any) -> ProviderResult:
+        try:
+            if kwargs.get("adjust", "") not in {"", "none", "unadjusted"} or str(kwargs.get("fqt", "0")) != "0":
+                raise ValueError("Eastmoney contract only supports unadjusted historical prices (fqt=0)")
+            symbol = _normalize_stock_code(code)
+            raw_code, market = symbol.split(".")
+            if len(raw_code) != 6 or not raw_code.isdigit() or market not in {"SH", "SZ", "BJ"}:
+                raise ValueError("invalid A-share code")
+            start = pd.Timestamp(start_date).normalize()
+            end = pd.Timestamp(end_date).normalize()
+            if pd.isna(start) or pd.isna(end) or start.tzinfo is not None or end.tzinfo is not None or end < start:
+                raise ValueError("invalid date range")
+            params = {
+                "fields1": "f1,f2,f3,f4,f5,f6",
+                "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
+                "ut": "7eea3edcaed734bea9cbfc24409ed989",
+                "klt": "101", "fqt": "0",
+                "secid": f"{'1' if market == 'SH' else '0'}.{raw_code}",
+                "beg": start.strftime("%Y%m%d"), "end": end.strftime("%Y%m%d"),
+            }
+            response = subprocess.run(
+                [_curl_executable(), "--fail", "--silent", "--show-error", "--noproxy", "*",
+                 "--max-time", "20", f"{self._endpoint}?{urlencode(params, safe=',')}"],
+                capture_output=True, text=True, encoding="utf-8", timeout=25, check=False,
+            )
+            if response.returncode:
+                raise ValueError(f"historical request failed (curl exit={response.returncode}): {response.stderr[-300:]}")
+            payload = json.loads(response.stdout)
+            if not isinstance(payload, dict) or payload.get("rc") != 0:
+                raise ValueError("invalid Eastmoney historical response or API error")
+            data = payload.get("data")
+            if not isinstance(data, dict) or str(data.get("code", "")) != raw_code:
+                raise ValueError("historical response code does not match requested code")
+            lines = data.get("klines")
+            if not isinstance(lines, list) or not lines:
+                raise ValueError("empty or malformed historical klines")
+            rows = []
+            for line in lines:
+                if not isinstance(line, str) or len(fields := line.split(",")) != 11:
+                    raise ValueError("malformed historical kline: expected 11 fields")
+                day = pd.to_datetime(fields[0], format="%Y-%m-%d", errors="raise")
+                values = [float(value) for value in fields[1:]]
+                if not all(math.isfinite(value) for value in values):
+                    raise ValueError("nonfinite historical kline value")
+                op, close, high, low, volume, amount, _, pct_chg, _, turnover = values
+                if min(op, high, low, close) <= 0 or high < max(op, close, low) or low > min(op, close, high):
+                    raise ValueError("invalid historical OHLC range")
+                if volume < 0 or amount < 0:
+                    raise ValueError("negative historical volume or amount")
+                rows.append({"date": day, "code": symbol, "open": op, "high": high, "low": low,
+                             "close": close, "volume": volume * 100.0, "amount": amount,
+                             "pct_chg": pct_chg, "turnover": turnover,
+                             "trade_open": op, "trade_high": high, "trade_low": low, "trade_close": close,
+                             "source": self.name})
+            frame = pd.DataFrame(rows)
+            if frame["date"].duplicated().any():
+                raise ValueError("duplicated historical kline dates")
+            frame = frame.loc[frame["date"].between(start, end)].copy()
+            if frame.empty:
+                raise ValueError("no historical bars in requested date range")
+            frame["updated_at"] = pd.Timestamp.now(tz="Asia/Shanghai").strftime("%Y-%m-%d %H:%M:%S")
+            valid = DataValidator.validate_stock_daily(frame, min_rows=1, require_min_rows=False)
+            if not valid.ok:
+                raise ValueError(valid.error)
+            frame = DataValidator.clean_stock_daily(frame, symbol)
+            return ProviderResult(True, frame, self.name, "")
+        except Exception as exc:
+            return ProviderResult(False, None, self.name, str(exc))
+
+    def fetch_minute(self, code: str, period: str, start: str, end: str, **kwargs: Any) -> ProviderResult:
+        return ProviderResult(False, None, self.name, "Eastmoney unadjusted contract does not provide minute history")
+
+    def fetch_basic(self, **kwargs: Any) -> ProviderResult:
+        return AkShareProvider().fetch_basic(**kwargs)
+
+
+class SinaUnadjustedProvider(MarketDataProvider):
+    """Decode Sina's original historical bars without filling missing sessions."""
+
+    name = "sina_unadjusted_v1"
+    _decode_lock = threading.Lock()
+
+    def __init__(self, config: dict | None = None):
+        self.config = config if config is not None else load_data_config()
+        self._listing_boundaries: dict[str, pd.Timestamp] | None = None
+        self._listing_lock = threading.Lock()
+
+    def _bse_listing_boundary(self, code: str) -> pd.Timestamp:
+        from my_strategy.core.paths import project_path as resolve_project_path
+
+        with self._listing_lock:
+            if self._listing_boundaries is None:
+                filename = self.config.get(self.name, {}).get("listing_boundaries_file")
+                if not filename:
+                    raise ValueError("BSE listing boundaries file is not configured")
+                path = resolve_project_path(filename).resolve()
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+                    raise ValueError("invalid BSE listing boundaries manifest schema")
+                records = manifest.get("records")
+                if not isinstance(records, list) or not records:
+                    raise ValueError("invalid or empty BSE listing boundary records")
+                snapshot = manifest.get("source_snapshot")
+                if not isinstance(snapshot, dict) or not isinstance(snapshot.get("file"), str):
+                    raise ValueError("missing BSE source snapshot identity")
+                source_path = (path.parent / snapshot["file"]).resolve()
+                if not source_path.is_relative_to(path.parent) or not re.fullmatch(r"[0-9a-f]{64}", str(snapshot.get("sha256", ""))):
+                    raise ValueError("invalid BSE source snapshot identity")
+                if hashlib.sha256(source_path.read_bytes()).hexdigest() != snapshot["sha256"]:
+                    raise ValueError("BSE source snapshot SHA256 mismatch")
+                boundaries = {}
+                floor = pd.Timestamp("2021-11-15")
+                for record in records:
+                    if not isinstance(record, dict) or not re.fullmatch(r"\d{6}\.BJ", str(record.get("symbol", ""))):
+                        raise ValueError("invalid BSE listing boundary symbol")
+                    symbol = record["symbol"]
+                    date = record.get("bse_listing_boundary", "")
+                    raw_date = record.get("raw_fxssrq", "")
+                    if not isinstance(date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date) or not isinstance(raw_date, str) or not re.fullmatch(r"\d{8}", raw_date):
+                        raise ValueError("invalid BSE listing boundary date")
+                    boundary = pd.to_datetime(date, format="%Y-%m-%d", errors="raise")
+                    listed = pd.to_datetime(raw_date, format="%Y%m%d", errors="raise")
+                    if boundary != max(floor, listed) or symbol in boundaries:
+                        raise ValueError("inconsistent or duplicate BSE listing boundary")
+                    boundaries[symbol] = boundary
+                self._listing_boundaries = boundaries
+            if code not in self._listing_boundaries:
+                raise ValueError(f"BSE listing boundary unavailable for {code}; refresh the metadata snapshot")
+            return self._listing_boundaries[code]
+
+    def healthcheck(self) -> ProviderResult:
+        end = pd.Timestamp.now(tz="Asia/Shanghai").normalize().tz_localize(None)
+        return self.fetch_daily("600519.SH", (end - pd.Timedelta(days=14)).date().isoformat(), end.date().isoformat())
+
+    @staticmethod
+    def _decode_history(text: str, symbol: str) -> list[dict[str, Any]]:
+        from akshare.stock.cons import hk_js_decode
+        import py_mini_racer
+
+        assignment = text.strip().split(";", 1)[0].strip()
+        left, separator, encoded = assignment.partition("=")
+        if not separator or left.strip() != f"var KLC_K2_{symbol}":
+            raise ValueError("Sina historical response code does not match requested code")
+        compressed = json.loads(encoded.strip())
+        if not isinstance(compressed, str) or not compressed:
+            raise ValueError("empty or malformed Sina historical payload")
+        # Only the installed decoder is evaluated; upstream content is its data argument.
+        # MiniRacer's native initialization raced on macOS when update workers
+        # created their first V8 contexts together. Serialize decoding only;
+        # independent HTTP requests can still run concurrently.
+        with SinaUnadjustedProvider._decode_lock:
+            with py_mini_racer.MiniRacer() as decoder:
+                decoder.eval(hk_js_decode)
+                return decoder.call("d", compressed)
+
+    def fetch_daily(self, code: str, start_date: str, end_date: str, **kwargs: Any) -> ProviderResult:
+        try:
+            if kwargs.get("adjust", "") not in {"", "none", "unadjusted"}:
+                raise ValueError("Sina contract only supports unadjusted historical prices")
+            code = _normalize_stock_code(code)
+            raw_code, market = code.split(".")
+            if len(raw_code) != 6 or not raw_code.isdigit() or market not in {"SH", "SZ", "BJ"}:
+                raise ValueError("invalid A-share code")
+            symbol = market.lower() + raw_code
+            start, end = pd.Timestamp(start_date).normalize(), pd.Timestamp(end_date).normalize()
+            if pd.isna(start) or pd.isna(end) or start.tzinfo is not None or end.tzinfo is not None or end < start:
+                raise ValueError("invalid date range")
+            if market == "BJ":
+                start = max(start, self._bse_listing_boundary(code))
+                if end < start:
+                    raise ValueError("requested range has no BSE-listed sessions")
+            url = f"https://finance.sina.com.cn/realstock/company/{symbol}/hisdata_klc2/klc_kl.js"
+            response = subprocess.run(
+                [_curl_executable(), "--fail", "--silent", "--show-error", "--noproxy", "*", "--max-time", "20", url],
+                capture_output=True, text=True, encoding="utf-8", timeout=25, check=False,
+            )
+            if response.returncode:
+                raise ValueError(f"historical request failed (curl exit={response.returncode}): {response.stderr[-300:]}")
+            rows = self._decode_history(response.stdout, symbol)
+            required = {"date", "open", "high", "low", "close", "volume", "amount"}
+            if not isinstance(rows, list) or not rows or any(not isinstance(row, dict) or not required <= row.keys() for row in rows):
+                raise ValueError("empty or malformed Sina historical bars")
+            frame = pd.DataFrame(rows)
+            # Decoder dates identify sessions at UTC midnight; use their original
+            # calendar date, rather than creating dates from a stock-capital table.
+            frame["date"] = pd.to_datetime(frame["date"], format="ISO8601", utc=True, errors="raise").dt.tz_localize(None).dt.normalize()
+            if frame["date"].isna().any() or frame["date"].duplicated().any():
+                raise ValueError("invalid or duplicated historical dates")
+            frame = frame.loc[frame["date"].between(start, end)].sort_values("date").copy()
+            if frame.empty:
+                raise ValueError("no historical bars in requested date range")
+            for column in ("open", "high", "low", "close", "volume", "amount"):
+                frame[column] = pd.to_numeric(frame[column], errors="raise")
+                if not frame[column].map(math.isfinite).all():
+                    raise ValueError("nonfinite historical kline value")
+            prices = frame[["open", "high", "low", "close"]]
+            if (prices <= 0).any().any() or (frame["high"] < prices.max(axis=1)).any() or (frame["low"] > prices.min(axis=1)).any():
+                raise ValueError("invalid historical OHLC range")
+            if (frame[["volume", "amount"]] < 0).any().any():
+                raise ValueError("negative historical volume or amount")
+            # Original decoded volume is shares and amount is CNY; no conversion,
+            # adjustment factor, neighbouring date, or realtime quote is applied.
+            for column in ("open", "high", "low", "close"):
+                frame[f"trade_{column}"] = frame[column]
+            frame["code"], frame["source"] = code, self.name
+            frame["pct_chg"] = frame["close"].pct_change(fill_method=None).fillna(0.0) * 100.0
+            frame["turnover"] = 0.0  # Stock-capital data is not part of this contract.
+            frame["updated_at"] = pd.Timestamp.now(tz="Asia/Shanghai").strftime("%Y-%m-%d %H:%M:%S")
+            valid = DataValidator.validate_stock_daily(frame, min_rows=1, require_min_rows=False)
+            if not valid.ok:
+                raise ValueError(valid.error)
+            return ProviderResult(True, DataValidator.clean_stock_daily(frame, code), self.name, "")
+        except Exception as exc:
+            return ProviderResult(False, None, self.name, str(exc))
+
+    def fetch_minute(self, code: str, period: str, start: str, end: str, **kwargs: Any) -> ProviderResult:
+        return ProviderResult(False, None, self.name, "Sina unadjusted contract does not provide minute history")
+
+    def fetch_basic(self, **kwargs: Any) -> ProviderResult:
+        return AkShareProvider().fetch_basic(**kwargs)
+
+
+class TencentStarUnadjustedProvider(MarketDataProvider):
+    """Tencent original daily bars for SH688 stocks with verified share units."""
+
+    name = "tencent_star_unadjusted_v1"
+    _endpoint = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqkline/get"
+
+    def healthcheck(self) -> ProviderResult:
+        end = pd.Timestamp.now(tz="Asia/Shanghai").normalize().tz_localize(None)
+        return self.fetch_daily("688089.SH", (end - pd.Timedelta(days=14)).date().isoformat(), end.date().isoformat())
+
+    def fetch_daily(self, code: str, start_date: str, end_date: str, **kwargs: Any) -> ProviderResult:
+        try:
+            if kwargs.get("adjust", "") not in {"", "none", "unadjusted"}:
+                raise ValueError("Tencent STAR contract only supports unadjusted historical prices")
+            code = _normalize_stock_code(code)
+            if not re.fullmatch(r"688\d{3}\.SH", code):
+                raise ValueError("Tencent STAR contract supports SH688 stocks only; other markets have unverified volume units")
+            symbol = "sh" + code.split(".")[0]
+            start, end = pd.Timestamp(start_date).normalize(), pd.Timestamp(end_date).normalize()
+            if pd.isna(start) or pd.isna(end) or start.tzinfo is not None or end.tzinfo is not None or end < start:
+                raise ValueError("invalid date range")
+            observed: dict[pd.Timestamp, tuple[float, ...]] = {}
+            selected = []
+            for year in range(start.year, end.year + 1):
+                window_start = pd.Timestamp(year=year, month=1, day=1)
+                window_end = min(end, pd.Timestamp(year=year, month=12, day=31))
+                params = {"param": f"{symbol},day,{window_start.date()},{window_end.date()},640,"}
+                response = subprocess.run(
+                    [_curl_executable(), "--fail", "--silent", "--show-error", "--noproxy", "*",
+                     "--max-time", "20", f"{self._endpoint}?{urlencode(params)}"],
+                    capture_output=True, text=True, encoding="utf-8", timeout=25, check=False,
+                )
+                if response.returncode:
+                    raise ValueError(f"historical request failed for {year} (curl exit={response.returncode}): {response.stderr[-300:]}")
+                payload = json.loads(response.stdout)
+                if not isinstance(payload, dict) or payload.get("code") != 0:
+                    raise ValueError(f"invalid Tencent historical response or API error for {year}")
+                data = payload.get("data")
+                if data == []:  # Valid empty response before the first stored listing bar.
+                    continue
+                if not isinstance(data, dict) or not isinstance(data.get(symbol), dict):
+                    raise ValueError("historical response code does not match requested code")
+                data = data[symbol]
+                if "qfqday" in data or "hfqday" in data or not isinstance(data.get("day"), list):
+                    raise ValueError("Tencent historical response must contain original day bars only")
+                bars = data["day"]
+                if len(bars) > 640:
+                    raise ValueError("Tencent historical response exceeds the requested page size")
+                page_dates = []
+                for bar in bars:
+                    if not isinstance(bar, list) or len(bar) != 11:
+                        raise ValueError("malformed Tencent historical bar: expected 11 fields")
+                    if not isinstance(bar[0], str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", bar[0]):
+                        raise ValueError("invalid Tencent historical date")
+                    day = pd.to_datetime(bar[0], format="%Y-%m-%d", errors="raise")
+                    if page_dates and day <= page_dates[-1]:
+                        raise ValueError("duplicated or unordered Tencent historical dates")
+                    page_dates.append(day)
+                    op, close, high, low, volume, turnover, amount = [float(bar[i]) for i in (1, 2, 3, 4, 5, 7, 8)]
+                    values = (op, close, high, low, volume, turnover, amount)
+                    if not all(math.isfinite(value) for value in (*values, amount * 10000.0)):
+                        raise ValueError("nonfinite Tencent historical value")
+                    if min(op, close, high, low) <= 0 or high < max(op, close, low) or low > min(op, close, high):
+                        raise ValueError("invalid Tencent historical OHLC range")
+                    if volume < 0 or amount < 0 or turnover < 0:
+                        raise ValueError("negative Tencent historical volume, amount or turnover")
+                    if day > window_end:
+                        raise ValueError("Tencent historical response includes a date after its requested end")
+                    if day in observed and observed[day] != values:
+                        raise ValueError(f"conflicting Tencent historical revisions for {day.date()}")
+                    observed[day] = values
+                    if max(start, window_start) <= day <= window_end:
+                        selected.append({"date": day, "code": code, "open": op, "close": close,
+                                         "high": high, "low": low, "volume": volume,
+                                         "amount": amount * 10000.0, "turnover": turnover,
+                                         "trade_open": op, "trade_high": high, "trade_low": low, "trade_close": close,
+                                         "source": self.name})
+                # The API may ignore its start argument and return the last 640
+                # bars. A calendar-year window fits below that cap; refuse a page
+                # whose cap prevents witnessing the requested window's start.
+                if len(bars) in {320, 640} and page_dates[0] > max(start, window_start):
+                    raise ValueError(f"truncated Tencent historical year window: {year}")
+            if not selected:
+                raise ValueError("no historical bars in requested date range")
+            frame = pd.DataFrame(selected).sort_values("date").reset_index(drop=True)
+            if frame["date"].duplicated().any():
+                raise ValueError("duplicated Tencent historical dates across year windows")
+            frame["pct_chg"] = frame["close"].pct_change(fill_method=None).fillna(0.0) * 100.0
+            frame["updated_at"] = pd.Timestamp.now(tz="Asia/Shanghai").strftime("%Y-%m-%d %H:%M:%S")
+            valid = DataValidator.validate_stock_daily(frame, min_rows=1, require_min_rows=False)
+            if not valid.ok:
+                raise ValueError(valid.error)
+            frame = DataValidator.clean_stock_daily(frame, code)
+            frame.attrs["amount_precision_cny"] = 100.0  # Upstream reports 0.01万元.
+            return ProviderResult(True, frame, self.name, "")
+        except Exception as exc:
+            return ProviderResult(False, None, self.name, str(exc))
+
+    def fetch_minute(self, code: str, period: str, start: str, end: str, **kwargs: Any) -> ProviderResult:
+        return ProviderResult(False, None, self.name, "Tencent STAR contract does not provide minute history")
+
+    def fetch_basic(self, **kwargs: Any) -> ProviderResult:
+        return AkShareProvider().fetch_basic(**kwargs)
 
 
 class TushareProvider(MarketDataProvider):
@@ -1483,7 +1823,7 @@ class UnifiedDataProvider:
 
 def _default_providers(config: dict | None) -> list[MarketDataProvider]:
     cfg = config or load_data_config()
-    providers: list[MarketDataProvider] = [AkShareProvider(), FuyaoProvider(cfg)]
+    providers: list[MarketDataProvider] = [AkShareProvider(), EastmoneyProvider(), SinaUnadjustedProvider(cfg), TencentStarUnadjustedProvider(), FuyaoProvider(cfg)]
     if cfg.get("tushare", {}).get("token") or os.environ.get("TUSHARE_TOKEN"):
         providers.append(TushareProvider(cfg))
     providers.extend([
@@ -1515,8 +1855,10 @@ def _shanghai_epoch_ms(value: pd.Timestamp) -> int:
 
 
 def _normalize_stock_code(code: str) -> str:
-    code = str(code).strip().split(".")[0].zfill(6)
-    suffix = "SH" if code.startswith("6") else "SZ"
+    code, _, suffix = str(code).strip().upper().partition(".")
+    code = code.zfill(6)
+    if suffix not in {"SH", "SZ", "BJ"}:
+        suffix = "SH" if code.startswith("6") else "BJ" if code.startswith(("4", "8", "9")) else "SZ"
     return f"{code}.{suffix}"
 
 

@@ -1,0 +1,123 @@
+{
+  "version": "czsc_wyckoff_three_experts_v1",
+  "publication_allowed": false,
+  "observed_windows_diagnostic_only": true,
+  "independent_window": {
+    "status": "awaiting_actual_complete_freeze",
+    "start": null,
+    "end": null,
+    "start_rule": "first_verified_session_after_protocol_code_config_all_models_actual_complete_freeze",
+    "minimum_complete_dependence_blocks": 2,
+    "dependence_blocks": [
+      160,
+      240
+    ],
+    "minimum_technical_sessions": 480
+  },
+  "feature_start": "2023-01-01",
+  "horizon": 10,
+  "initial_cash": 100000,
+  "seed": 42,
+  "epochs": 20,
+  "batch_size": 2048,
+  "ma_hidden_sizes": [
+    32,
+    16
+  ],
+  "min_train_rows": 100,
+  "min_validation_rows": 30,
+  "threshold_grid": [
+    0.5,
+    0.55,
+    0.6,
+    0.65
+  ],
+  "threshold_min_rows": 30,
+  "default_threshold": 0.55,
+  "exit_enabled": true,
+  "exit_threshold": 0.55,
+  "ledger_dependence_bars": 120,
+  "ledger_bootstrap_blocks": [
+    160,
+    240
+  ],
+  "development_windows": [
+    {
+      "name": "2025Q2",
+      "train_end": "2024-12-31",
+      "validation_start": "2025-01-01",
+      "validation_end": "2025-03-31",
+      "test_start": "2025-04-01",
+      "test_end": "2025-06-30"
+    },
+    {
+      "name": "2025Q4",
+      "train_end": "2025-06-30",
+      "validation_start": "2025-07-01",
+      "validation_end": "2025-09-30",
+      "test_start": "2025-10-01",
+      "test_end": "2025-12-31"
+    },
+    {
+      "name": "2026Q2",
+      "train_end": "2025-12-31",
+      "validation_start": "2026-01-01",
+      "validation_end": "2026-03-31",
+      "test_start": "2026-04-01",
+      "test_end": "2026-06-30"
+    },
+    {
+      "name": "2026Q3",
+      "train_end": "2026-03-31",
+      "validation_start": "2026-04-01",
+      "validation_end": "2026-06-30",
+      "test_start": "2026-07-01",
+      "test_end": "2026-09-30"
+    }
+  ],
+  "production": {
+    "train_end": "2026-06-30",
+    "validation_start": "2026-07-01",
+    "validation_end": "2026-09-30"
+  },
+  "baseline_dual_run_id": "20261009-155719-184554-20261008-czsc-dual-research-train-NO_GIT",
+  "wyckoff_l2": 0.001,
+  "fusion_l2": 0.01,
+  "threshold_min_completed_round_trips": 30,
+  "threshold_min_candidate_coverage": 0.01,
+  "policy_enabled": true,
+  "policy_threshold": 0.55,
+  "search_budget": {
+    "linear_configurations": 1,
+    "tree_configurations": 0,
+    "tcn_configurations": 0,
+    "tcn_condition": "no_sequence_incremental_support_yet"
+  },
+  "minimum_development_round_trips_per_window": 50,
+  "minimum_development_round_trips_total": 200,
+  "arms": [
+    "rules",
+    "ma_only",
+    "structure_only",
+    "fusion",
+    "rules_exit",
+    "fusion_exit",
+    "wyckoff_rule",
+    "wyckoff_only",
+    "three_fusion",
+    "fusion_wyckoff_exit",
+    "three_fusion_exit",
+    "policy_fresh",
+    "union_rules",
+    "policy_union"
+  ],
+  "candidate_filter_contract": "frozen_unfiltered_fresh_active_plans_v2",
+  "auxiliary_bridge": "matched_dual_fixed_candidates",
+  "execution_replay_context": "immutable_full_prefix_features_flat_start_60_verified_prior_trades_v1",
+  "auxiliary_controls": [
+    "matched_dual_fixed_candidates",
+    "common_w_inputs_dual_gate",
+    "common_w_inputs_rules"
+  ],
+  "auxiliary_common_input_contract": "all_three_experts_y10_input_eligible_original_frozen_fresh_plans_v1"
+}

@@ -25,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
         item.add_argument("--initial-cash", type=float, default=100000)
         item.add_argument("--device", help="计算设备：auto、cpu、mps、cuda 或 cuda:编号")
         item.add_argument("--research", action="store_true", default=True, help="统一缠论量价ML研究（默认）")
+        item.add_argument("--model-family", choices=("ma_trend", "dual", "wyckoff"), default="ma_trend", help="均线单模型、双专家或威科夫三专家影子包")
         item.add_argument("--structure-only", dest="research", action="store_false", help="原生结构规则对照")
         item.add_argument("--usage-mode", choices=("production", "historical", "retrospective"), default="historical")
         item.add_argument("--model-policy", choices=("auto", "pinned"), default="auto")
@@ -44,6 +45,22 @@ def build_parser() -> argparse.ArgumentParser:
     research.add_argument("--device", default="auto")
     research.add_argument("--cpu-workers", type=int, default=4)
     research.add_argument("--json", action="store_true")
+    dual = commands.add_parser("research-dual-train", help="双专家融合与实际持仓退出完整研究")
+    dual.set_defaults(model_family="dual")
+    dual.add_argument("--source-training-run-id", required=True, help="包含全列冻结特征与10日标签的已完成研究运行")
+    dual.add_argument("--stocks", default="")
+    dual.add_argument("--end", required=True)
+    dual.add_argument("--device", default="auto")
+    dual.add_argument("--cpu-workers", type=int, default=4)
+    dual.add_argument("--json", action="store_true")
+    wyckoff = commands.add_parser("research-wyckoff-train", help="威科夫量价三专家与真实持仓买卖契约研究")
+    wyckoff.set_defaults(model_family="wyckoff")
+    wyckoff.add_argument("--source-training-run-id", required=True)
+    wyckoff.add_argument("--stocks", default="")
+    wyckoff.add_argument("--end", required=True)
+    wyckoff.add_argument("--device", default="auto")
+    wyckoff.add_argument("--cpu-workers", type=int, default=4)
+    wyckoff.add_argument("--json", action="store_true")
     for name in ("research-promote", "research-rollback", "research-status"):
         item = commands.add_parser(name)
         if name == "research-promote":
@@ -53,6 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
             item.add_argument("--release-id", help="恢复已发布版本；留空则撤回活动模型")
         if name != "research-status":
             item.add_argument("--reason", required=True)
+        else:
+            item.add_argument("--model-family", choices=["ma_trend", "dual", "wyckoff"], default="ma_trend")
         item.add_argument("--json", action="store_true")
     for name in ("dashboard", "update-data", "package", "doctor"):
         item = commands.add_parser(name, add_help=False)
@@ -83,7 +102,14 @@ def main(argv: list[str] | None = None) -> int:
             from my_strategy.services.czsc_research import research_status
             store = ModelReleaseStore()
             if args.command == "research-status":
-                result = research_status()
+                if args.model_family == "wyckoff":
+                    from my_strategy.services.czsc_wyckoff_runtime import wyckoff_research_status
+                    result = wyckoff_research_status()
+                elif args.model_family == "dual":
+                    from my_strategy.services.czsc_dual_runtime import dual_research_status
+                    result = dual_research_status()
+                else:
+                    result = research_status()
             elif args.command == "research-promote":
                 result = store.promote(args.model_run_id, args.model_fold, reason=args.reason)
             else:
@@ -96,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.symbol:
                 raise ValueError("analyze 须指定 --symbol")
             spec = AnalysisRequest(symbol=args.symbol, start=args.start, end=args.end, as_of=args.as_of,
+                                   model_family=args.model_family,
                                    research=args.research, usage_mode=args.usage_mode, model_policy=args.model_policy,
                                    entry_policy=args.entry_policy,
                                    model_run_id=args.model_run_id, model_fold=args.model_fold,
@@ -109,11 +136,11 @@ def main(argv: list[str] | None = None) -> int:
             stocks = ([args.symbol] if getattr(args, "symbol", None) else []) + [stock.strip() for stock in args.stocks.split(",") if stock.strip()]
             task_spec = {"symbols": stocks, "start": getattr(args, "start", None), "end": args.end, "initial_cash": getattr(args, "initial_cash", 100000)}
             task_spec.update({key: getattr(args, key) for key in ("device", "cpu_workers", "batch_size") if getattr(args, key, None) is not None})
-            task_spec.update({key: getattr(args, key) for key in ("research", "model_run_id", "model_fold", "calendar_run_id", "usage_mode", "model_policy", "entry_policy") if getattr(args, key, None) is not None})
+            task_spec.update({key: getattr(args, key) for key in ("research", "model_family", "source_training_run_id", "model_run_id", "model_fold", "calendar_run_id", "usage_mode", "model_policy", "entry_policy") if getattr(args, key, None) is not None})
             if args.command == "research-train" and not task_spec.get("calendar_run_id"):
                 from my_strategy.services.czsc_research import research_status
                 task_spec["calendar_run_id"] = research_status()["calendar_run_id"]
-            request = TaskRequest(kind="research_train" if args.command == "research-train" else "scan" if args.command == "scan" else "backtest", spec=task_spec)
+            request = TaskRequest(kind="wyckoff_research_train" if args.command == "research-wyckoff-train" else "dual_research_train" if args.command == "research-dual-train" else "research_train" if args.command == "research-train" else "scan" if args.command == "scan" else "backtest", spec=task_spec)
             manager = TaskManager(workers=1)
             try:
                 spec = request.spec.model_dump(mode="json", exclude_none=True)

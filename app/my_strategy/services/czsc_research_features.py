@@ -17,6 +17,7 @@ from my_strategy.adapters.czsc_adapter import SOURCE_SHA256, legacy_fuyao_source
 from my_strategy.core.run_context import stable_hash
 from my_strategy.services.czsc_analysis import CzscSession, _pen_key, _zone_key, strategy_config
 from my_strategy.services.czsc_research_data import VERIFIED_SOURCES
+from my_strategy.services.czsc_research_profiles import MA_TREND_COLUMNS
 
 FEATURE_VERSION = "czsc_point_in_time_ma_volume_v2"
 FEATURE_COLUMNS = (
@@ -93,6 +94,8 @@ def _trailing_features(frame: pd.DataFrame) -> pd.DataFrame:
         values[f"ma{period}_slope5"] = ma / ma.shift(5) - 1
     values["ma_alignment"] = (np.sign(values["ma5"] - values["ma10"]) + np.sign(values["ma10"] - values["ma20"]) + np.sign(values["ma20"] - values["ma60"])) / 3
     values["close_above_ma20"] = np.sign(close - values["ma20"])
+    for short, long in ((5, 10), (10, 20), (20, 60)):
+        values[f"ma{short}_ma{long}_gap"] = values[f"ma{short}"] / values[f"ma{long}"] - 1
     previous = close.shift(1)
     true_range = pd.concat([frame["high"] - frame["low"], (frame["high"] - previous).abs(), (frame["low"] - previous).abs()], axis=1).max(axis=1)
     values["atr14_ratio"] = true_range.rolling(14, min_periods=14).mean() / close
@@ -156,6 +159,8 @@ def build_features(frame: pd.DataFrame, config: dict[str, Any] | None = None) ->
     totals = {key: np.r_[0, np.cumsum(mask)] for key, mask in reason_masks.items()}
     bad_totals = np.r_[0, np.cumsum(invalid)]
     suspension_totals = np.r_[0, np.cumsum(suspended)]
+    model_quality_window = max(120, quality_window)
+    active_totals = np.r_[0, np.cumsum(~invalid & ~suspended)]
     native_bars = bars.copy()
     for column in ("volume", "amount"):
         native_bars[column] = native_bars[column].where(np.isfinite(native_bars[column]) & (native_bars[column] >= 0), 0.0)
@@ -273,6 +278,19 @@ def build_features(frame: pd.DataFrame, config: dict[str, Any] | None = None) ->
             reasons.append("unverified_source_current_bar")
         if index + 1 < max(int(settings["warmup_bars"]), quality_window):
             reasons.insert(0, "quality_warmup")
+        # Model inputs depend only on their own trailing observations. Keep the
+        # CZSC dependency checks below for actual rule/trade eligibility.
+        model_start = max(0, index + 1 - model_quality_window)
+        model_reasons = [key for key, total in totals.items() if total[index + 1] - total[model_start] > 0]
+        if index + 1 < max(int(settings["warmup_bars"]), model_quality_window):
+            model_reasons.insert(0, "quality_warmup")
+        active_bars = int(active_totals[index + 1] - active_totals[model_start])
+        if active_bars < 60:
+            model_reasons.append("insufficient_active_history")
+        if not all(np.isfinite(snapshot[column]) for column in MA_TREND_COLUMNS):
+            model_reasons.append("ma_history_unavailable")
+        if suspended[index]:
+            model_reasons.append("suspended_current_bar")
         # Include the MA lookback immediately before referenced structures. The
         # native BS3 MA uses 34 bars at a pen's fractal, including its right bar.
         dependency_start = max(0, min(dependencies) - 34)
@@ -290,6 +308,8 @@ def build_features(frame: pd.DataFrame, config: dict[str, Any] | None = None) ->
         price_buy = snapshot["ma20"] > snapshot["ma60"] and float(row.close) > snapshot["ma20"] and snapshot["ma20_slope5"] > 0 and snapshot["ma60_slope5"] > 0 and (snapshot["up_volume_expansion"] == 1 or snapshot["pullback_contraction"] == 1)
         price_sell = float(row.close) < snapshot["ma20"] and snapshot["ma20_slope5"] < 0
         metadata.update({"input_eligible": eligible, "reason_codes": list(dict.fromkeys(reasons)),
+                         "model_input_eligible": not model_reasons, "model_reason_codes": list(dict.fromkeys(model_reasons)),
+                         "model_active_bars_window": active_bars,
                          "rule_czsc_buy": bool(eligible and czsc_buy), "rule_czsc_sell": bool(eligible and czsc_sell),
                          "rule_price_volume_buy": bool(eligible and price_buy), "rule_price_volume_sell": bool(eligible and price_sell),
                          "rule_buy": bool(eligible and czsc_buy and price_buy and snapshot["weekly_direction"] == 1),
@@ -301,7 +321,7 @@ def build_features(frame: pd.DataFrame, config: dict[str, Any] | None = None) ->
         metadata["input_hash"] = input_digest.hexdigest()
         rows.append({**snapshot, **metadata})
     result = pd.DataFrame(rows, index=frame.index)
-    numeric_columns = list(FEATURE_COLUMNS) + ["ma5", "ma10", "ma20", "ma60", "weekly_closed_bars", "monthly_closed_bars",
+    numeric_columns = list(dict.fromkeys((*FEATURE_COLUMNS, *MA_TREND_COLUMNS))) + ["ma5", "ma10", "ma20", "ma60", "weekly_closed_bars", "monthly_closed_bars",
                                                 "structure_low", "structure_high", "zone_low", "zone_high"]
     for column in numeric_columns:
         result[column] = result[column].astype(float).replace([np.inf, -np.inf], np.nan)
@@ -321,6 +341,7 @@ def build_features(frame: pd.DataFrame, config: dict[str, Any] | None = None) ->
                          "schema_hash": FEATURE_SCHEMA_HASH, "config_hash": stable_hash(settings),
                          "data_version": str(frame.attrs.get("data_version") or input_digest.hexdigest()),
                          "source_sha256": SOURCE_SHA256, "quality_window_bars": quality_window,
+                         "model_quality_window_bars": model_quality_window, "model_minimum_active_bars": 60,
                          "verified_sources": sorted(VERIFIED_SOURCES),
                          "higher_period_closure": "next_period_observed", "price_basis": frame.attrs.get("price_basis", "unverified"),
                          "signal_semantics": "frozen_native_ma_assisted_bs2_bs3_finished_pen_view",

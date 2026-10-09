@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "application_version": "0.1.0",
+  "application_version": "0.1.1",
   "method": "CZSC",
   "version": "1.0.1",
   "source_manifest": "app/czsc-source-manifest.json",
@@ -16,19 +16,56 @@
     "holdings",
     "data"
   ],
-  "capabilities": ["update-data", "analysis", "scan", "backtest", "research-train", "model-inference", "dated-model-releases", "personal-portfolio", "portable-package"],
+  "capabilities": [
+    "update-data",
+    "analysis",
+    "scan",
+    "backtest",
+    "research-train",
+    "model-inference",
+    "dated-model-releases",
+    "personal-portfolio",
+    "portable-package",
+    "ma-trend-model",
+    "dual-expert-fusion",
+    "wyckoff-three-expert-shadow",
+    "actual-policy-entry-shadow",
+    "actual-holding-exit-shadow"
+  ],
   "python": "3.12",
-  "devices": ["auto", "cpu", "cuda", "cuda:N", "mps"],
+  "devices": [
+    "auto",
+    "cpu",
+    "cuda",
+    "cuda:N",
+    "mps"
+  ],
   "platform_verification": {
-    "windows_x64_cpu": "verified_clean_source_and_wheel_install",
-    "windows_x64_cuda": "verified_existing_runtime_and_real_input_smoke",
-    "macos_arm64_mps": "requires_real_hardware_verification",
-    "linux_x64_cpu": "requires_ci_execution"
+    "windows_x64_cpu": "requires_0_1_1_ci_execution",
+    "windows_x64_cuda": "requires_0_1_1_cuda_verification",
+    "macos_arm64_mps": "verified_0_1_1_installed_wheel_real_hardware_smoke",
+    "linux_x64_cpu": "requires_0_1_1_ci_execution",
+    "macos_arm64_cpu": "verified_0_1_1_installed_wheel_cpu_smoke"
   },
-  "local_verification_date": "2026-10-06",
+  "local_verification_date": "2026-10-10",
   "input": "stock_daily_normalized",
   "results": "data/processed/czsc/results.db",
   "tasks": "data/metadata/czsc_tasks.db",
   "runs": "artifacts/runs",
-  "legacy_compatibility": false
+  "legacy_compatibility": false,
+  "previous_release_verification": {
+    "application_version": "0.1.0",
+    "platform_verification": {
+      "windows_x64_cpu": "verified_clean_source_and_wheel_install",
+      "windows_x64_cuda": "verified_existing_runtime_and_real_input_smoke",
+      "macos_arm64_mps": "requires_real_hardware_verification",
+      "linux_x64_cpu": "requires_ci_execution"
+    },
+    "local_verification_date": "2026-10-06"
+  },
+  "verification_scope": {
+    "application": "isolated installed wheel; source imports excluded",
+    "dependencies": "reused existing locked Python 3.12 dependencies and frozen native CZSC",
+    "input": "synthetic installation fixture; no financial certification"
+  }
 }

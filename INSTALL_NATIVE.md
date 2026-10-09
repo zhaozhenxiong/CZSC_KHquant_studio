@@ -1,8 +1,8 @@
-# KHQuant 0.1.0 原生安装与验收
+# KHQuant 0.1.1 原生安装与验收
 
 ## 环境和设备
 
-首版固定 Python 3.12。支持路线为 Windows x64 CPU/CUDA、Linux x64 CPU/CUDA、Apple Silicon macOS ARM64 CPU/MPS。Intel Mac 未列入本版安装矩阵。Mac 使用原生 ARM64 Python；系统最低版本以锁定 PyTorch wheel 和真机验证为准，MPS 可用性由 torch.backends.mps.is_available() 及实际算子执行检查。
+本版固定 Python 3.12。支持路线为 Windows x64 CPU/CUDA、Linux x64 CPU/CUDA、Apple Silicon macOS ARM64 CPU/MPS。Intel Mac 未列入本版安装矩阵。Mac 使用原生 ARM64 Python；系统最低版本以锁定 PyTorch wheel 和真机验证为准，MPS 可用性由 torch.backends.mps.is_available() 及实际算子执行检查。
 
 ~~~powershell
 # Windows；Mac/Linux 使用 python3.12
@@ -34,7 +34,7 @@ CI 和维护者构建命令：
 
 ~~~bash
 python app/build_czsc_runtime.py --out app/vendor/wheels --no-install
-python app/build_release.py --output-dir dist/releases/0.1.0 --wheel-dir app/vendor/wheels
+python app/build_release.py --output-dir dist/releases/0.1.1 --wheel-dir app/vendor/wheels
 ~~~
 
 build_release.py 支持重复 --wheel-dir 合并三平台 CI 资产。它验证原生资产并生成源码 ZIP、完整性清单、版本来源及 SHA256SUMS.txt；不会上传远端。工作区未提交内容会包含在包中，并在 release.json 标明。
@@ -59,7 +59,7 @@ python app/verify_installation.py --device cpu --output installation-cpu.json
 python app/verify_installation.py --device mps --output installation-mps.json
 ~~~
 
-该检查涵盖严格 doctor、模型训练/保存/重新加载、分析、扫描和回测、行情更新模块入口导入、六个网页 HTTP 入口、关注与持仓跨服务重启保存。源码单元测试另检验设备失败、时点资格、CPU/MPS 数值边界、源哈希及打包依赖。当前 Windows 环境不能代替 Mac 真机验收，runtime-manifest.json 保留各平台验证状态。
+该检查涵盖严格 doctor、模型训练/保存/重新加载、分析、扫描和回测、行情更新模块入口导入、六个网页 HTTP 入口、关注与持仓跨服务重启保存。源码单元测试另检验设备失败、时点资格、CPU/MPS 数值边界、源哈希及打包依赖。runtime-manifest.json 分别记录本版各平台实际验证状态，旧版本验证仅作历史记录。
 
 正式 wheel 的运行状态默认写入 ~/.khquant；可通过 KHQUANT_HOME、KHQUANT_DATA_ROOT、KHQUANT_ARTIFACT_ROOT 指定位置。源码/Release 安装保留仓库 .env 路径契约。网页默认绑定 127.0.0.1:8124；非本机绑定需要 KHQUANT_API_TOKEN。
 
@@ -89,3 +89,7 @@ khquant package --from-project /path/to/KHQuant --target /path/to/khquant-state 
 latest 从最新运行开始收集模型、日历及发布证据依赖；all 保留所有当前支持的 CZSC/研究/日历/认证运行。SQLite 使用一致 backup；模型 manifest、checkpoint 及历史发布事件不改写。缺引用、哈希不符或不完整发布状态将拒绝生成合格包。
 
 目标机器先 package --verify，再运行 install.py 创建自己的环境。导入已有训练候选不会自动晋升；模型资格仍按原日期及证据核验。
+
+0.1.1 新 dual/Wyckoff 嵌套模型尚未完成上述状态导出兼容验收；latest/all 不保证迁移本次全部新模型研究状态。源码发行包只包含程序、配置与冻结原生依赖，不包含本机的行情库或模型权重。
+
+重新训练 Wyckoff 的依赖：先准备核验交易日历和包含完整冻结特征、10 日标签的 MA 源研究运行，再完成使用同一 MA 源与日历的 dual 研究。research-wyckoff-train 的 --source-training-run-id 指定该 MA 源；还需将 configs/czsc_wyckoff_research.json 的 baseline_dual_run_id 设置为匹配的 dual 运行。随包配置里的原本地历史 run ID 不附带对应权重或报告，新机器不能直接复用。各依赖身份必须匹配；新的训练和认证协议须按实际完成时间重新冻结，禁止沿用旧冻结时间取得资格。

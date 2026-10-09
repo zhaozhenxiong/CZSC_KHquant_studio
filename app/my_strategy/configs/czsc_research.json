@@ -1,5 +1,7 @@
 {
-  "version": "czsc_price_volume_mlp_v1",
+  "version": "czsc_ma_trend_mlp_v1",
+  "feature_profile": "ma_trend_v1",
+  "logistic_baseline": true,
   "feature_start": "2023-01-01",
   "horizon": 10,
   "initial_cash": 100000,

@@ -136,6 +136,8 @@ def write_json(path: Path, value) -> None:
 
 def research_state(repo: Path) -> tuple[Path, Path]:
     from my_strategy.services.czsc_research_ml import MODEL_VERSION, LABEL_VERSION
+    from my_strategy.services.czsc_research_profiles import get_feature_profile
+    profile = get_feature_profile("legacy")
     runs = repo / "app/my_strategy/artifacts/runs"
     calendar = {"verified": True, "source": "verified fixture", "dates": ["2026-01-05", "2026-01-06"]}
     write_json(runs / "calendar/reports/calendar.json", calendar)
@@ -143,18 +145,21 @@ def research_state(repo: Path) -> tuple[Path, Path]:
     model.mkdir(parents=True)
     checkpoint = model / "model.pt"
     checkpoint.write_bytes(b"immutable CPU checkpoint fixture")
-    schema, preprocess = {"columns": ["feature"]}, {"mean": [0.0], "scale": [1.0]}
+    schema = {"columns": profile["columns"]}
+    preprocess = {"mean": [0.0] * len(profile["columns"]), "scale": [1.0] * len(profile["columns"])}
     manifest = {"model_version": MODEL_VERSION, "label_version": LABEL_VERSION,
                 "schema": schema, "schema_sha256": model_hash(schema),
                 "preprocess": preprocess, "preprocess_sha256": model_hash(preprocess),
                 "checkpoint": str(checkpoint.resolve()), "checkpoint_sha256": file_sha256(checkpoint),
                 "available_at": "2026-01-06", "train_label_end": "2026-01-05",
                 "validation_label_end": "2026-01-06", "validation_end": "2026-01-06",
-                "feature_schema_binding": "bound", "feature_version": "fixture-v1", "feature_schema_hash": "fixture-schema",
+                "feature_schema_binding": "bound", "feature_profile": profile["name"],
+                "feature_version": profile["version"], "feature_schema_hash": profile["schema_hash"],
                 "label_contract": {"calendar_hash": stable_hash(calendar["dates"])}, "data_version": "fixture-data"}
     manifest["manifest_sha256"] = model_hash(manifest)
     write_json(model / "manifest.json", manifest)
     write_json(runs / "training/reports/research.json", {"run_id": "training", "data_version": "fixture-data",
+               "strategy_version": profile["strategy_version"], "config": {"feature_profile": profile["name"]},
                "calendar": {"run_id": "calendar", "hash": stable_hash(calendar)}, "evaluation": []})
     return runs, model
 

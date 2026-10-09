@@ -34,6 +34,10 @@ def prepared(symbol, *, eligible=True, date="2026-09-30", schema="same", cached=
 
 @pytest.fixture
 def environment(tmp_path, monkeypatch):
+    from my_strategy.core import config_loader
+    original_load_config = config_loader.load_config
+    monkeypatch.setattr(config_loader, "load_config", lambda name: {"version": "czsc_price_volume_mlp_v1", "feature_profile": "legacy"}
+                        if name == "czsc_research" else original_load_config(name))
     training_root = tmp_path / "training"
     (training_root / "reports").mkdir(parents=True)
     training = {"data_end": "2026-09-30", "calendar": {"run_id": "verified"}, "dataset_records": [],

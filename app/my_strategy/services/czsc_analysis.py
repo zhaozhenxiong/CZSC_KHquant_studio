@@ -283,7 +283,7 @@ def analyze_stock(symbol: str, start: str | None = None, end: str | None = None,
                   research: bool = False, usage_mode: str = "historical", model_policy: str = "auto",
                   model_run_id: str | None = None, model_fold: str | None = None,
                   calendar_run_id: str | None = None, device: str | None = None,
-                  entry_policy: str = "legacy") -> dict[str, Any]:
+                  entry_policy: str = "legacy", model_family: str = "ma_trend") -> dict[str, Any]:
     """Rebuild observable bars; planned research starts its flat Position at start."""
     settings = strategy_config(config)
     frame = load_bars(symbol, end=end, as_of=as_of, db_path=db_path)
@@ -306,17 +306,28 @@ def analyze_stock(symbol: str, start: str | None = None, end: str | None = None,
         item, compute = analyze_research_frame(frame, usage_mode=usage_mode, model_policy=model_policy,
                                                model_run_id=model_run_id, model_fold=model_fold,
                                                calendar_run_id=calendar_run_id, device=device, db_path=db_path,
-                                               entry_policy=entry_policy, position_start=lower)
+                                               entry_policy=entry_policy, position_start=lower, model_family=model_family)
         replay = item["replay"]
         result["structure_baseline"] = {"events": result["events"], "next_session_decision": result["next_session_decision"]}
-        result.update(strategy_version="czsc_price_volume_mlp_v1",
+        result.update(strategy_version=compute.get("strategy_version", "czsc_price_volume_mlp_v1"),
+                      feature_profile=compute.get("feature_profile", "legacy"),
+                      model_family=model_family,
                       events=[e for e in replay["events"] if not lower or e["time"] >= lower],
                       next_session_decision=replay["latest_decision"], compute_info=compute,
                       research={"usage_mode": usage_mode, "model_policy": model_policy,
+                                "model_family": model_family,
                                 "entry_policy": entry_policy, "position_start": lower if entry_policy != "legacy" else None,
                                 "entry_parameters": compute.get("entry_parameters"), "entry_plan_config_hash": compute.get("entry_plan_config_hash"),
                                 "model_routes": route_segments(item["routes"], start=lower),
                                 "final_state": replay["final_state"], "agent_evidence": replay["agent_evidence"]})
+        if model_family == "wyckoff":
+            result["wyckoff_events"] = [{"event": row.wyckoff_event, "state": row.wyckoff_state,
+                "anchor_at": row.wyckoff_anchor_at, "observed_at": row.wyckoff_observed_at,
+                "available_at": row.wyckoff_available_at,
+                "buy_candidate": bool(row.wyckoff_rule_buy), "sell_evidence": bool(row.wyckoff_rule_sell)}
+                for row in item["features"].itertuples()
+                if row.wyckoff_event in {"Spring", "Test", "SOS", "LPS", "Upthrust", "SOW", "LPSY"}
+                and (not lower or str(row.wyckoff_available_at)[:10] >= lower)]
         if entry_policy != "legacy":
             result["config_hash"] = stable_hash({"strategy": settings, "entry_plan_config_hash": compute["entry_plan_config_hash"]})
         if usage_mode == "retrospective":

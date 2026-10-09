@@ -88,6 +88,13 @@ def _calendar_quality(features: pd.DataFrame, raw: pd.DataFrame, market_dates: l
         reasons = list(result.iloc[i]["reason_codes"])
         result.iat[i, result.columns.get_loc("reason_codes")] = list(dict.fromkeys([*reasons, "calendar_missing_market_bar_window"]))
     result.loc[affected, "input_eligible"] = False
+    if "model_input_eligible" in result:
+        model_window = int(features.attrs.get("model_quality_window_bars", 120))
+        model_affected = pd.Series(gaps).rolling(model_window, min_periods=1).max().astype(bool).to_numpy()
+        result.loc[model_affected, "model_input_eligible"] = False
+        for i in np.flatnonzero(model_affected):
+            codes = list(result.iloc[i]["model_reason_codes"])
+            result.iat[i, result.columns.get_loc("model_reason_codes")] = list(dict.fromkeys([*codes, "calendar_missing_market_bar_window"]))
     for column in ("rule_czsc_buy", "rule_czsc_sell", "rule_price_volume_buy", "rule_price_volume_sell", "rule_buy", "rule_sell"):
         result.loc[affected, column] = False
     result.attrs.update(calendar_hash=stable_hash(market_dates), calendar_gap_policy="veto_trailing_quality_window_preserve_rows")
@@ -97,6 +104,7 @@ def _calendar_quality(features: pd.DataFrame, raw: pd.DataFrame, market_dates: l
 def _prepare(symbol: str, end: str, market_dates: list[str], config: dict[str, Any], db_path: str | None):
     from my_strategy.services.czsc_research_features import build_features
     from my_strategy.services.czsc_research_ml import build_labels
+    from my_strategy.services.czsc_research_profiles import bind_feature_profile
     raw = load_bars(symbol, end=end, db_path=db_path)
     features = _calendar_quality(build_features(raw), raw, market_dates)
     labels = build_labels(raw, market_dates=market_dates, horizon=config["horizon"], initial_cash=config["initial_cash"])
@@ -108,7 +116,7 @@ def _prepare(symbol: str, end: str, market_dates: list[str], config: dict[str, A
         joined[column] = raw[column].to_numpy()
     joined["date"] = pd.to_datetime(joined["date"]).dt.strftime("%Y-%m-%d")
     joined.attrs = {**features.attrs, "data_version": raw.attrs["data_version"], "price_basis": raw.attrs["price_basis"]}
-    return joined
+    return bind_feature_profile(joined, config.get("feature_profile"))
 
 
 def _calendar(calendar_run_id: str) -> tuple[list[str], dict[str, Any]]:
@@ -124,7 +132,8 @@ def _calendar(calendar_run_id: str) -> tuple[list[str], dict[str, Any]]:
 def build_dataset(symbols: list[str], end: str, context, config: dict[str, Any], market_dates: list[str],
                   *, cpu_workers: int = 4, db_path: str | None = None,
                   progress: Callable | None = None, check_cancel: Callable | None = None):
-    from my_strategy.services.czsc_research_features import FEATURE_COLUMNS, FEATURE_VERSION, FEATURE_SCHEMA_HASH
+    from my_strategy.services.czsc_research_profiles import get_feature_profile
+    profile = get_feature_profile(config.get("feature_profile"))
     check = check_cancel or (lambda: None)
     records, failures, samples = [], [], []
     pool = ProcessPoolExecutor(max_workers=cpu_workers, mp_context=multiprocessing.get_context("spawn")) if cpu_workers > 1 else None
@@ -135,10 +144,14 @@ def build_dataset(symbols: list[str], end: str, context, config: dict[str, Any],
         records.append({"symbol": symbol, "path": str(path), "data_version": data.attrs["data_version"], "bars": len(data),
                         "data_end": data.iloc[-1]["date"], "feature_schema_hash": data.attrs["schema_hash"], "sha256": _file_hash(path),
                         "input_eligible_rows": int(data["input_eligible"].sum()), "label_available_rows": int(data["label_available"].sum()),
+                        "feature_profile": profile["name"],
+                        "model_input_eligible_rows": int(data.get("model_input_eligible", data["input_eligible"]).sum()),
                         "label_reason_counts": data["label_reason"].value_counts().to_dict()})
         if symbol.startswith("60") and symbol.endswith(".SH") or symbol.startswith("00") and symbol.endswith(".SZ"):
-            selected = data[(data["date"] >= config["feature_start"]) & data["input_eligible"].astype(bool) & data["label"].notna()]
-            samples.append(selected[["symbol", "date", "label", "label_end", "label_available", "input_eligible", *FEATURE_COLUMNS]])
+            eligibility_column = "model_input_eligible" if profile["name"] == "ma_trend_v1" else "input_eligible"
+            selected = data[(data["date"] >= config["feature_start"]) & data[eligibility_column].astype(bool) & data["label"].notna()].copy()
+            selected["input_eligible"] = selected[eligibility_column].astype(bool)
+            samples.append(selected[["symbol", "date", "label", "label_end", "label_available", "input_eligible", *profile["columns"]]])
     try:
         for offset in range(0, len(symbols), 32):
             check()
@@ -172,7 +185,9 @@ def build_dataset(symbols: list[str], end: str, context, config: dict[str, Any],
     if not samples or not any(len(item) for item in samples):
         raise ValueError("没有通过来源、时点及可执行标签检查的训练样本")
     dataset = pd.concat(samples, ignore_index=True).sort_values(["date", "symbol"])
-    dataset.attrs.update(feature_version=FEATURE_VERSION, schema_hash=FEATURE_SCHEMA_HASH, data_version=stable_hash({r["symbol"]: r["data_version"] for r in records}),
+    dataset.attrs.update(feature_version=profile["version"], schema_hash=profile["schema_hash"],
+                         feature_profile=profile["name"], feature_columns=profile["columns"],
+                         data_version=stable_hash({r["symbol"]: r["data_version"] for r in records}),
                          label_contract={"horizon": config["horizon"], "initial_cash": config["initial_cash"], "calendar_hash": stable_hash(market_dates), "label_version": "czsc_fixed_horizon_broker_v1"})
     _save(context.subdir("reports") / "dataset.json", {"records": records, "failures": failures, "rows": len(dataset), "config": config})
     dataset.to_parquet(context.subdir("dataset") / "training.parquet", index=False)
@@ -223,7 +238,10 @@ def evaluate_fold(records: list[dict], model_dir: Path, fold: dict, context, con
                 probabilities = np.full(len(features), np.nan)
                 mask = features["date"] >= model_available
                 if mask.any():
-                    probabilities[mask] = predictor.predict(features.loc[mask], model_dir, as_of=fold["test_end"])
+                    inputs = features.loc[mask].copy()
+                    if config.get("feature_profile") == "ma_trend_v1":
+                        inputs["input_eligible"] = inputs["model_input_eligible"].astype(bool)
+                    probabilities[mask] = predictor.predict(inputs, model_dir, as_of=fold["test_end"])
                 args = (record, fold, context, config, probabilities, market_dates)
                 if pool:
                     pending.append(pool.submit(evaluate_record, *args))
@@ -261,6 +279,7 @@ def evaluate_fold(records: list[dict], model_dir: Path, fold: dict, context, con
         except ValueError as exc:
             uncertainty[str(block)] = {"unavailable": str(exc)}
     result = {"fold": fold, "variants": comparisons, "paired_daily_return_uncertainty": uncertainty,
+              "compute_info": predictor.diagnostics,
               "frozen_mainboard_accounts": len(frozen_pool), "unavailable_accounts_cash_retained": unavailable}
     _save(context.subdir("reports") / (fold["name"] + ".json"), result)
     return result
@@ -281,11 +300,41 @@ def _round_trips(ledger):
     return len(returns), returns
 
 
+def evaluate_classifiers(dataset, model_dir, fold, context, config, profile, *, device, progress=None, check_cancel=None):
+    """Fixed linear baseline and held-out probabilities; never a release gate."""
+    if not config.get("logistic_baseline", False):
+        return {}
+    from my_strategy.services.czsc_research_ml import train_model, PredictorSession, _metrics
+    check = check_cancel or (lambda: None)
+    destination = context.subdir("baselines", "logistic", fold["name"])
+    baseline = train_model(dataset, profile["columns"], destination, fold["train_end"], fold["validation_start"],
+                           fold["validation_end"], device=device, seed=config["seed"], epochs=config["epochs"], hidden_sizes=(),
+                           progress=(lambda c, t: progress("逻辑回归基线 " + fold["name"], c, t, 0)) if progress else None,
+                           check_cancel=check_cancel)
+    dates = dataset["date"].astype(str)
+    ends = dataset["label_end"].astype(str)
+    mask = ((dates >= fold["test_start"]) & (dates <= fold["test_end"]) & (ends <= fold["test_end"])
+            & dataset["label_available"].astype(bool) & dataset["input_eligible"].astype(bool))
+    inputs = dataset.loc[mask].copy()
+    predictor = PredictorSession(device=device)
+    metrics = {}
+    for name, directory in (("ma_mlp", model_dir), ("ma_logistic", destination)):
+        check()
+        values = predictor.predict(inputs, directory, as_of=fold["test_end"]) if len(inputs) else np.array([])
+        metrics[name] = _metrics(inputs["label"].to_numpy(dtype=float), values) if len(inputs) else {"rows": 0}
+    return {"metrics": metrics, "logistic_manifest": baseline, "compute_info": predictor.diagnostics,
+            "qualification": "diagnostic_only_not_production_certification",
+            "label_selection": "Only mature, feasible fixed-horizon labels; broker ledger gate remains separate."}
+
+
 def train_research(*, end: str, calendar_run_id: str, symbols: list[str] | None = None, device: str = "auto",
                    cpu_workers: int = 4, progress=None, check_cancel=None, run_callback=None) -> dict:
-    from my_strategy.services.czsc_research_features import FEATURE_COLUMNS
+    from my_strategy.services.czsc_research_profiles import get_feature_profile
     from my_strategy.services.czsc_research_ml import train_model
     config = load_config("czsc_research")
+    profile = get_feature_profile(config.get("feature_profile"))
+    if config["version"] != profile["strategy_version"]:
+        raise ValueError("研究配置与模型特征策略版本不一致")
     end = pd.Timestamp(end).date().isoformat()
     if latest_market_date(end) != end:
         raise ValueError("请求目标日行情缺失，研究训练不得静默回退")
@@ -306,10 +355,12 @@ def train_research(*, end: str, calendar_run_id: str, symbols: list[str] | None 
         model_dir = context.subdir("models", fold["name"])
         if progress:
             progress("训练 " + fold["name"], 0, 1, 0)
-        manifest = train_model(dataset, FEATURE_COLUMNS, model_dir, fold["train_end"], fold["validation_start"], fold["validation_end"], device=device, seed=config["seed"], epochs=config["epochs"],
+        manifest = train_model(dataset, profile["columns"], model_dir, fold["train_end"], fold["validation_start"], fold["validation_end"], device=device, seed=config["seed"], epochs=config["epochs"],
                                progress=(lambda c, t: progress("训练 " + fold["name"], c, t, 0)) if progress else None, check_cancel=check_cancel)
         result = evaluate_fold(records, model_dir, fold, context, config, device=device, requested_symbols=symbols, market_dates=dates, cpu_workers=cpu_workers, progress=progress, check_cancel=check_cancel)
         result["model_manifest"] = manifest
+        result["classifier_diagnostics"] = evaluate_classifiers(dataset, model_dir, fold, context, config, profile, device=device, progress=progress, check_cancel=check_cancel)
+        _save(context.subdir("reports") / (fold["name"] + ".json"), result)
         results.append(result)
     wins = []
     for item in results:
@@ -321,21 +372,30 @@ def train_research(*, end: str, calendar_run_id: str, symbols: list[str] | None 
     full_universe = set(symbols) == {item["symbol"] for item in list_symbols()}
     gate = {"passed": full_universe and not failures and len(wins) >= 3 and all(wins), "full_universe": full_universe, "preparation_failures": len(failures), "windows": len(wins), "passing_windows": sum(wins), "rule": "完整冻结股票池且无准备失败；费用后收益及交易期望改善、回撤不恶化超过2个百分点、至少30次完整交易且配对日期块置信下限>0；至少3窗口全部通过"}
     production = config["production"]
-    manifest = train_model(dataset, FEATURE_COLUMNS, context.subdir("models", "production"), production["train_end"], production["validation_start"], min(production["validation_end"], end), device=device, seed=config["seed"], epochs=config["epochs"],
+    manifest = train_model(dataset, profile["columns"], context.subdir("models", "production"), production["train_end"], production["validation_start"], min(production["validation_end"], end), device=device, seed=config["seed"], epochs=config["epochs"],
                            progress=(lambda c, t: progress("训练 production", c, t, 0)) if progress else None, check_cancel=check_cancel)
     training_completed_at = manifest["training_completed_at"]
     from my_strategy.core.device import requested_torch_device
     trained_manifests = [item["model_manifest"] for item in results] + [manifest]
+    trained_manifests += [item["classifier_diagnostics"]["logistic_manifest"] for item in results if item.get("classifier_diagnostics")]
     devices = list(dict.fromkeys(item["device"] for item in trained_manifests))
+    inference_records = [item["compute_info"] for item in results]
+    inference_records += [item["classifier_diagnostics"]["compute_info"] for item in results if item.get("classifier_diagnostics")]
     compute_info = {"research": True, "training": True, "requested_device": requested_torch_device(device),
+                    "feature_profile": profile["name"], "feature_version": profile["version"],
+                    "feature_schema_hash": profile["schema_hash"],
                     "selected_devices": devices, "selected_device": devices[0] if len(devices) == 1 else "mixed",
                     "actual_devices": devices, "actual_device": devices[0] if len(devices) == 1 else "mixed",
+                    "model_inference_rows": sum(item.get("rows", 0) for item in inference_records),
+                    "model_inference_batches": sum(item.get("batches", 0) for item in inference_records),
+                    "model_loads": sum(item.get("model_loads", 0) for item in inference_records),
                     "cuda_work": any(item.get("actual_cuda_training", False) for item in trained_manifests),
                     "mps_work": any(item.get("actual_mps_training", False) for item in trained_manifests),
                     "gpu_work": any(item.get("actual_gpu_training", item.get("actual_cuda_training", False)) for item in trained_manifests),
                     "model_training_models": len(trained_manifests),
                     "model_training_batches": sum(item.get("training_batches", 0) for item in trained_manifests)}
     result = {"run_id": context.run_id, "strategy_version": config["version"], "data_version": dataset.attrs["data_version"], "data_end": end, "data_range": {"start": config["feature_start"], "end": end},
+              "feature_profile": profile["name"], "feature_columns": profile["columns"],
               "coverage": {"requested": len(symbols), "success": len(records), "failed": len(failures)}, "failures": failures, "calendar": calendar,
               "dataset_records": records, "training_rows": len(dataset), "evaluation": results, "model_gate": gate, "model_manifest": manifest,
               "model_dir": str(context.subdir("models", "production")), "run_context": context.to_dict(), "config": config,
@@ -411,18 +471,20 @@ def scan_research(*, end: str, symbols: list[str] | None = None, model_run_id: s
                   device: str = "auto", cpu_workers: int | None = None, batch_size: int | None = None,
                   progress=None, check_cancel=None, held_symbols: set[str] | None = None, run_callback=None,
                   usage_mode: str = "historical", model_policy: str = "auto", model_fold: str | None = None,
-                  calendar_run_id: str | None = None, entry_policy: str = "legacy", start: str | None = None):
+                  calendar_run_id: str | None = None, entry_policy: str = "legacy", start: str | None = None, model_family: str = "ma_trend"):
     from my_strategy.services.czsc_research_runtime import run_research
     return run_research(kind="scan", end=end, symbols=symbols, model_run_id=model_run_id, device=device,
                         cpu_workers=cpu_workers, batch_size=batch_size, progress=progress,
                         check_cancel=check_cancel, held_symbols=held_symbols, run_callback=run_callback,
                         usage_mode=usage_mode, model_policy=model_policy, model_fold=model_fold,
-                        calendar_run_id=calendar_run_id, entry_policy=entry_policy, start=start)
+                        calendar_run_id=calendar_run_id, entry_policy=entry_policy, start=start, model_family=model_family)
 
 
 def research_status():
     from my_strategy.storage.czsc_results import ResultStore
     from my_strategy.storage.czsc_model_releases import ModelReleaseStore
+    from my_strategy.services.czsc_research_profiles import get_feature_profile
+    current_profile = get_feature_profile(load_config("czsc_research").get("feature_profile"))
     calendars = sorted(ARTIFACT_RUNS_ROOT.glob("*/reports/calendar.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     calendar_run_id = None
     for path in calendars:
@@ -439,9 +501,11 @@ def research_status():
         names = ["production", *(value["fold"]["name"] for value in training.get("evaluation", []))]
         checkpoints = [_research_checkpoint(training, root, name)[0] for name in names]
         models.append({"run_id": item["run_id"], "created_at": item["created_at"], "model_gate": summary.get("model_gate", {}),
+                       "feature_profile": training.get("feature_profile", "legacy"),
                        "coverage": summary.get("coverage", {}), "checkpoints": checkpoints})
     releases = ModelReleaseStore()
     return {"models": models, "calendar_run_id": calendar_run_id,
+            "feature_profile": current_profile["name"], "strategy_version": current_profile["strategy_version"],
             "active_release": releases.active(), "releases": releases.events(limit=30)}
 
 
@@ -449,10 +513,10 @@ def backtest_research(*, symbols: list[str], start: str, end: str, initial_cash:
                       model_run_id: str | None = None, model_fold: str | None = None, device: str = "auto",
                       progress=None, check_cancel=None, run_callback=None, usage_mode: str = "historical",
                       model_policy: str = "auto", calendar_run_id: str | None = None,
-                      cpu_workers: int | None = None, batch_size: int | None = None, entry_policy: str = "legacy"):
+                      cpu_workers: int | None = None, batch_size: int | None = None, entry_policy: str = "legacy", model_family: str = "ma_trend"):
     from my_strategy.services.czsc_research_runtime import run_research
     return run_research(kind="backtest", symbols=symbols, start=start, end=end, initial_cash=initial_cash,
                         model_run_id=model_run_id, model_fold=model_fold, device=device, progress=progress,
                         check_cancel=check_cancel, run_callback=run_callback, usage_mode=usage_mode,
                         model_policy=model_policy, calendar_run_id=calendar_run_id,
-                        cpu_workers=cpu_workers, batch_size=batch_size, entry_policy=entry_policy)
+                        cpu_workers=cpu_workers, batch_size=batch_size, entry_policy=entry_policy, model_family=model_family)

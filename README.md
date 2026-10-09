@@ -32,7 +32,7 @@ python3.12 install.py --device cpu
 
 浏览器打开 <http://127.0.0.1:8124>。安装包含 PyTorch 研究依赖；auto 在 NVIDIA 环境选择 CUDA，在 Apple Silicon 选择 MPS，其余选择 CPU。可以明确使用 --device cpu、--device cuda:0 或 --device mps。明确请求不可用的设备会报错。
 
-安装器只接受经冻结源码校验的 CZSC wheel。Release 应携带目标平台 wheel 和 wheel-index.json；可通过 --wheel-dir 使用单独下载的资产。当前本地产物只携带 Windows wheel，Mac/Linux 首个原生 wheel 必须由相应平台 CI 构建；源码安装缺 wheel 时需要 Rust 与本机编译工具。平台测试状态见 runtime-manifest.json，MPS 正式验收必须使用真实 Mac。
+安装器只接受经冻结源码校验的 CZSC wheel。Release 应携带目标平台 wheel 和 wheel-index.json；可通过 --wheel-dir 使用单独下载的资产。0.1.1 源码包携带经校验的 Windows x64 与 macOS ARM64 wheel；Linux 原生资产需由对应 CI 构建。源码安装缺 wheel 时需要 Rust 与本机编译工具。平台测试状态见 runtime-manifest.json，MPS 正式验收必须使用真实 Mac。
 
 ## 首次使用
 
@@ -56,7 +56,7 @@ khquant research-train --end YYYY-MM-DD --calendar-run-id VERIFIED_CALENDAR_RUN 
 源码 Release，不含业务数据和个人记录：
 
 ~~~bash
-python app/build_release.py --output-dir dist/releases/0.1.0
+python app/build_release.py --output-dir dist/releases/0.1.1
 ~~~
 
 在源码仓库或解压的源码 Release 环境中打包研究状态，目标目录须不存在：
@@ -67,10 +67,12 @@ khquant package --target ../khquant-state --include-data --include-artifacts all
 
 正式 wheel 安装只提供运行代码，不能从 site-packages 导出源码包。先克隆仓库或解压源码 Release，再用 `--from-project /path/to/KHQuant` 指定来源。导出状态采用该来源目录的路径配置；迁移 wheel 的现有状态时，先将来源目录的 `.env` 指向实际数据、模型 artifacts 和 metadata 目录。
 
-需要自己迁移关注与手动持仓时，显式追加 --include-personal。模型、核验日历及发布证据按依赖完整携带；模型哈希、历史时间和影子资格保持不变。安装方式及验收详见 [INSTALL_NATIVE.md](INSTALL_NATIVE.md)。
+需要自己迁移关注与手动持仓时，显式追加 --include-personal。既有单模型状态按受支持的依赖契约导出；本版新 dual/Wyckoff 嵌套模型状态尚未完成导出兼容验收，不能保证 latest/all 迁移全部新研究状态。模型哈希、历史时间和影子资格保持不变。安装方式及验收详见 [INSTALL_NATIVE.md](INSTALL_NATIVE.md)。
 
 ## 研究边界
 
 默认组合研究；--structure-only 选择原生结构对照。收盘信号在下一可执行交易日开盘尝试成交，费用、拒单、每日净值和期末持仓均留存。多股回测采用固定等额独立账户。当前使用未复权行情，历史 ST、分红送转等限制随结果披露。
 
 训练候选只有通过独立、完整股票池的费用后账本门槛才可晋升。目录名 production 不代表已正式发布；迁移和安装也不会赋予发布资格。旧 V2/Z1 模型与派生仓库已退役。
+
+0.1.1 新增均线趋势、结构与均线双专家、Wyckoff 三专家及真实持仓退出影子研究。概率目标为 10 交易日费用后正收益；未通过独立认证的模型继续保持影子。详见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。

@@ -112,3 +112,12 @@ E_RUNTIME_COMPLETE
 !.keep
 !**/README.md
 app/my_strategy/.serena/
+
+# Local native-wheel staging and release validation work
+.runtime-wheels/
+.release-work/
+
+# Generated release snapshots and local audit evidence
+/release.json
+/image-manifest.json
+app/my_strategy/knowledge_base_system/
