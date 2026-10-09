@@ -75,6 +75,29 @@ raise SystemExit(doctor.main(['--json', '--strict']))
     assert "量价模型".encode("utf-8") in result.stdout
 
 
+def test_installation_verifier_json_roundtrip_from_real_cp1252_pipe(tmp_path):
+    code = """
+import runpy, sys
+assert sys.stdout.encoding.lower() == 'cp1252'
+path = sys.argv[1]
+driver = runpy.run_path(path, run_name='khquant_utf8_verifier')
+assert sys.stdout.encoding.lower() == 'cp1252', 'import must not reconfigure streams'
+main = driver['main']
+main.__globals__['verify'] = lambda device, output: {
+    'status': 'passed', '说明': '安装验证中文输出',
+    'path': 'C:/行情数据/研究模型',
+}
+sys.argv = [path]
+main()
+"""
+    result = _child(["-c", code, str(APP / "verify_installation.py")], tmp_path)
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    payload = json.loads(result.stdout.decode("utf-8"))
+    assert payload == {"status": "passed", "说明": "安装验证中文输出", "path": "C:/行情数据/研究模型"}
+    assert "安装验证中文输出".encode("utf-8") in result.stdout
+    assert b"UnicodeEncodeError" not in result.stderr
+
+
 @pytest.mark.parametrize("arguments, expected", [
     (["--help"], "结构研究"),
     (["analyze", "--help"], "计算设备"),

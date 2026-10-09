@@ -133,6 +133,9 @@ def verify(device: str, output: Path | None) -> dict:
 
 
 def main() -> None:
+    from my_strategy.runtime_env import configure_utf8_stdio
+
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--output", type=Path)
